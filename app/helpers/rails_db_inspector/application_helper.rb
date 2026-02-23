@@ -247,19 +247,28 @@ module RailsDbInspector
       end
     end
 
-    def group_icon(request_type)
-      case request_type
-      when :api
-        "🔗"
-      when :web_request
-        "🌐"
-      when :model_operation
-        "📊"
-      when :schema
-        "🗂️"
-      else
-        "💾"
+    # JSON serialization helpers for schema visualization
+    def schema_to_json(schema)
+      result = {}
+      schema.each do |table_name, info|
+        result[table_name] = {
+          columns: info[:columns].map { |c| { name: c[:name], type: c[:type], nullable: c[:nullable], default: c[:default] } },
+          indexes: info[:indexes].map { |i| { name: i[:name], columns: i[:columns], unique: i[:unique] } },
+          foreign_keys: info[:foreign_keys].map { |fk| { column: fk[:column], to_table: fk[:to_table], primary_key: fk[:primary_key] } },
+          primary_key: info[:primary_key],
+          row_count: info[:row_count],
+          associations: (info[:associations] || []).map { |a| { name: a[:name], macro: a[:macro], target_table: a[:target_table], foreign_key: a[:foreign_key], through: a[:through] } },
+          missing_indexes: info[:missing_indexes] || [],
+          polymorphic_columns: (info[:polymorphic_columns] || []).map { |p| { name: p[:name], type_column: p[:type_column], id_column: p[:id_column] } }
+        }
       end
+      result.to_json
+    end
+
+    def relationships_to_json(relationships)
+      relationships.map do |r|
+        { from_table: r[:from_table], from_column: r[:from_column], to_table: r[:to_table], to_column: r[:to_column], type: r[:type].to_s }
+      end.to_json
     end
   end
 end

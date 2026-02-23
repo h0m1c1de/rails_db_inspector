@@ -4,6 +4,11 @@ source "https://rubygems.org"
 gemspec
 
 gem "puma"
+gem "sqlite3"
+
+# Testing
+gem "rspec-rails"
+gem "simplecov", require: false
 
 # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
 gem "rubocop-rails-omakase", require: false

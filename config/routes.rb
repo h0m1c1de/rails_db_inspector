@@ -12,4 +12,6 @@ RailsDbInspector::Engine.routes.draw do
       post :clear
     end
   end
+
+  get "schema", to: "schema#index", as: :schema_index
 end
