@@ -1,0 +1,258 @@
+<div class="space-y-6">
+  <!-- Header Section -->
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">Query Monitor</h1>
+      <p class="mt-2 text-gray-600">Real-time SQL query capture and performance analysis</p>
+    </div>
+    <div class="flex space-x-3">
+      <%= button_to "Clear All", clear_queries_path, method: :post, 
+          class: "inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors",
+          form: { class: "inline" },
+          data: { confirm: "Are you sure you want to clear all captured queries?" } %>
+    </div>
+  </div>
+
+  <!-- Query Statistics -->
+  <div class="bg-white rounded-lg shadow">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h2 class="text-lg font-medium text-gray-900">Query Statistics</h2>
+    </div>
+    <div class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <div class="text-center">
+          <div class="text-2xl font-bold text-blue-600"><%= @queries.length %></div>
+          <div class="text-sm text-gray-500">Total Queries</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-green-600">
+            <%= @queries.any? ? format("%.1f", @queries.map(&:duration_ms).sum / @queries.length) : "0.0" %>
+          </div>
+          <div class="text-sm text-gray-500">Avg Duration (ms)</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-orange-600">
+            <%= @queries.any? ? format("%.1f", @queries.map(&:duration_ms).max || 0) : "0.0" %>
+          </div>
+          <div class="text-sm text-gray-500">Slowest (ms)</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-purple-600"><%= @queries.select { |q| q.sql.downcase.start_with?('select') }.length %></div>
+          <div class="text-sm text-gray-500">SELECT Queries</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold <%= @n_plus_ones.any? ? 'text-red-600' : 'text-green-600' %>"><%= @n_plus_ones.length %></div>
+          <div class="text-sm text-gray-500">N+1 Detected</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- N+1 Query Warnings -->
+  <% if @n_plus_ones.any? %>
+    <div class="bg-red-50 border border-red-200 rounded-lg shadow overflow-hidden">
+      <div class="px-6 py-4 border-b border-red-200 bg-red-100">
+        <div class="flex items-center">
+          <span class="text-2xl mr-3">🔁</span>
+          <div>
+            <h2 class="text-lg font-semibold text-red-900">N+1 Query Detection</h2>
+            <p class="text-sm text-red-700">
+              Found <%= pluralize(@n_plus_ones.length, 'potential N+1 pattern') %>.
+              These are repeated identical queries that likely belong in a single query with eager loading.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="divide-y divide-red-200">
+        <% @n_plus_ones.each do |n1| %>
+          <div class="px-6 py-4">
+            <div class="flex items-start justify-between">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-600 text-white">
+                    ×<%= n1[:count] %>
+                  </span>
+                  <span class="text-sm font-semibold text-red-900"><%= n1[:name] || "Query" %></span>
+                  <span class="text-xs text-red-600">on <code class="font-mono"><%= n1[:table] %></code></span>
+                </div>
+                <div class="bg-white rounded p-2 mt-2 border border-red-200">
+                  <code class="text-xs font-mono text-gray-700 break-all"><%= truncate(n1[:sample].sql.gsub(/\s+/, " "), length: 200) %></code>
+                </div>
+                <div class="mt-2 flex items-center gap-4 text-xs text-red-700">
+                  <span>Total time: <strong><%= format("%.1f", n1[:total_duration_ms]) %>ms</strong></span>
+                  <span>Avg: <strong><%= format("%.1f", n1[:total_duration_ms] / n1[:count]) %>ms</strong> per query</span>
+                </div>
+                <div class="mt-2 bg-yellow-50 border border-yellow-200 rounded p-2">
+                  <p class="text-xs text-yellow-800">
+                    <strong>💡 Fix:</strong> Add <code class="font-mono bg-yellow-100 px-1 rounded">includes(:<%= n1[:table].singularize rescue n1[:table] %>)</code>
+                    or <code class="font-mono bg-yellow-100 px-1 rounded">eager_load(:<%= n1[:table].singularize rescue n1[:table] %>)</code>
+                    to the parent query to load all associated records in a single query.
+                  </p>
+                </div>
+              </div>
+              <div class="ml-4 flex-shrink-0">
+                <%= link_to "View", query_path(n1[:sample].id),
+                    class: "inline-flex items-center px-2 py-1 border border-red-300 rounded text-xs text-red-700 bg-white hover:bg-red-50 transition-colors" %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Queries Table -->
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h2 class="text-lg font-medium text-gray-900">Recent Queries</h2>
+      <p class="mt-1 text-sm text-gray-500">Grouped by action/request - click on any query to view details or generate execution plans</p>
+    </div>
+    
+    <% if @query_groups.any? %>
+      <div class="w-full">
+        <table class="w-full divide-y divide-gray-200" style="table-layout: fixed;">
+          <colgroup>
+            <col style="width: 70px;">
+            <col style="width: 75px;">
+            <col style="width: 85px;">
+            <col style="width: 43%;">
+            <col style="width: 90px;">
+            <col style="width: 90px;">
+          </colgroup>
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+              <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+              <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SQL</th>
+              <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white">
+            <% @query_groups.each_with_index do |group, group_index| %>
+              <!-- Group Header -->
+              <tr class="bg-blue-50 border-t-2 border-blue-200">
+                <td colspan="6" class="px-6 py-3">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                      <span class="text-lg"><%= group_icon(group[:request_type]) %></span>
+                      <div>
+                        <h3 class="text-sm font-semibold text-blue-900"><%= group[:action] %></h3>
+                        <p class="text-xs text-blue-600">
+                          <%= format_group_time_range(group) %> • 
+                          <%= pluralize(group[:queries].length, 'query') %> • 
+                          <%= format("%.1f", group[:queries].sum(&:duration_ms)) %>ms total
+                        </p>
+                      </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <% if group[:queries].any? { |q| q.duration_ms > 100 } %>
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                          ⚠️ Slow Queries
+                        </span>
+                      <% end %>
+                      <% if group[:queries].length > 10 %>
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                          📊 High Volume
+                        </span>
+                      <% end %>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              
+              <!-- Group Queries -->
+              <% group[:queries].each_with_index do |q, index| %>
+                <tr class="<%= 'bg-red-50' if q.duration_ms > 1000 %> <%= 'bg-yellow-50' if q.duration_ms > 100 && q.duration_ms <= 1000 %> hover:bg-gray-50 transition-colors <%= 'border-b-2 border-gray-300' if index == group[:queries].length - 1 && group_index < @query_groups.length - 1 %>">
+                  <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-500">
+                    <% ts = q.timestamp %>
+                    <%= if ts
+                          (ts.is_a?(Time) ? ts : Time.at(ts.to_f)).strftime("%H:%M:%S")
+                        end %>
+                  </td>
+                  <td class="px-2 py-2 whitespace-nowrap">
+                    <span class="text-sm font-medium <%= 'text-red-600' if q.duration_ms > 1000 %> <%= 'text-yellow-600' if q.duration_ms > 100 && q.duration_ms <= 1000 %> <%= 'text-gray-900' if q.duration_ms <= 100 %>">
+                      <%= format("%.1f", q.duration_ms) %>ms
+                    </span>
+                  </td>
+                  <td class="px-2 py-2 text-sm text-gray-900 truncate">
+                    <span class="font-medium"><%= q.name || 'Anonymous' %></span>
+                  </td>
+                  <td class="px-2 py-2">
+                    <div class="flex items-center gap-1">
+                      <span class="sql-hover-trigger flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-xs cursor-pointer hover:bg-blue-200 hover:text-blue-700" title="View full query">
+                        i
+                        <span class="sql-tooltip hidden absolute z-50 mt-1 max-w-3xl bg-gray-900 text-gray-100 text-xs font-mono p-3 rounded-lg shadow-xl whitespace-pre-wrap break-all">
+                          <%= q.sql %>
+                        </span>
+                      </span>
+                      <span class="text-sm font-mono text-gray-700 truncate">
+                        <%= truncate(q.sql.gsub(/\s+/, " "), length: 100) %>
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-2 py-2 text-xs">
+                    <div class="flex flex-wrap gap-1">
+                      <%= render_query_type(q) %>
+                    </div>
+                  </td>
+                  <td class="px-2 py-2 whitespace-nowrap text-xs font-medium">
+                    <div class="flex space-x-1">
+                      <%= link_to "View", query_path(q.id), 
+                          class: "inline-flex items-center px-2 py-1 border border-blue-300 rounded text-blue-700 bg-white hover:bg-blue-50 transition-colors" %>
+                      <%= link_to "Explain", explain_query_path(q.id), 
+                          class: "inline-flex items-center px-2 py-1 border border-green-300 rounded text-green-700 bg-white hover:bg-green-50 transition-colors" %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="px-6 py-12 text-center">
+        <div class="text-gray-400 mb-4">
+          <svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No queries captured yet</h3>
+        <p class="text-gray-500 mb-4">SQL queries will appear here as they are executed by your Rails application.</p>
+        <p class="text-sm text-gray-400">Make sure your Rails app is running and executing database queries.</p>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<style>
+  .sql-hover-trigger {
+    position: relative;
+  }
+  .sql-tooltip {
+    position: fixed;
+    pointer-events: none;
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.sql-hover-trigger').forEach(function(el) {
+      var tooltip = el.querySelector('.sql-tooltip');
+      if (!tooltip) return;
+
+      el.addEventListener('mouseenter', function(e) {
+        var rect = el.getBoundingClientRect();
+        tooltip.style.top = (rect.bottom + 4) + 'px';
+        tooltip.style.left = rect.left + 'px';
+        tooltip.style.maxWidth = Math.min(800, window.innerWidth - rect.left - 20) + 'px';
+        tooltip.classList.remove('hidden');
+      });
+
+      el.addEventListener('mouseleave', function() {
+        tooltip.classList.add('hidden');
+      });
+    });
+  });
+</script>

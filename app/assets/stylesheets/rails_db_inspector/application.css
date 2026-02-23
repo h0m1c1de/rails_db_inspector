@@ -1,0 +1,41 @@
+/*
+ * Rails DB Inspector - Tailwind CSS Application
+ * 
+ * This gem now uses Tailwind CSS for modern, professional styling.
+ * Custom styles for plan trees and specific components are included below.
+ *= require_self
+ */
+
+/* Custom styles for plan tree interactions */
+.expand-toggle {
+  transition: all 0.2s ease-in-out;
+}
+
+.plan-node-header.collapsed + .plan-node-body {
+  display: none;
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .bg-gray-50 {
+    background-color: white !important;
+  }
+  
+  .shadow, .shadow-sm {
+    box-shadow: none !important;
+  }
+}

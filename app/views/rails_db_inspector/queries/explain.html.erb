@@ -1,0 +1,128 @@
+<% content_for :scripts do %>
+  <script>
+    // Plan Tree JavaScript
+    function toggleNode(nodeId) {
+      const nodeBody = document.getElementById(nodeId);
+      const header = nodeBody.previousElementSibling;
+      const toggle = header.querySelector('.expand-toggle');
+      
+      if (nodeBody.style.display === 'none') {
+        nodeBody.style.display = 'block';
+        header.classList.remove('collapsed');
+        if (toggle) toggle.textContent = '−';
+      } else {
+        nodeBody.style.display = 'none';
+        header.classList.add('collapsed');
+        if (toggle) toggle.textContent = '+';
+      }
+    }
+
+    // Initialize collapsed state for large trees
+    document.addEventListener('DOMContentLoaded', function() {
+      const allNodes = document.querySelectorAll('.plan-node');
+      
+      // Auto-collapse nodes beyond depth 2 if there are many nodes
+      if (allNodes.length > 10) {
+        let depth = 0;
+        function collapseDeepNodes(element) {
+          if (element.classList.contains('plan-node')) {
+            depth++;
+            if (depth > 2) {
+              const header = element.querySelector('.plan-node-header');
+              const body = element.querySelector('.plan-node-body');
+              const toggle = header.querySelector('.expand-toggle');
+              
+              if (body) {
+                body.style.display = 'none';
+                header.classList.add('collapsed');
+                if (toggle) toggle.textContent = '+';
+              }
+            }
+            
+            // Process children
+            const children = element.querySelector('.plan-node-children');
+            if (children) {
+              for (let child of children.children) {
+                collapseDeepNodes(child);
+              }
+            }
+            
+            depth--;
+          }
+        }
+        
+        const rootNode = document.querySelector('.plan-node');
+        if (rootNode) {
+          collapseDeepNodes(rootNode);
+        }
+      }
+    });
+  </script>
+<% end %>
+
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">Query Execution Plan</h1>
+      <p class="mt-2 text-gray-600">Detailed analysis of query performance and execution strategy</p>
+    </div>
+    <div>
+      <%= link_to "← Back to Query", query_path(@query.id), 
+          class: "inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" %>
+    </div>
+  </div>
+
+  <!-- SQL Query -->
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+      <h2 class="text-lg font-medium text-gray-900">SQL Query</h2>
+    </div>
+    <div class="p-6">
+      <div class="bg-gray-900 rounded-md p-4 overflow-x-auto">
+        <pre class="text-green-400 text-sm font-mono whitespace-pre-wrap"><%= @query.sql %></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Execution Plan -->
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+      <h2 class="text-lg font-medium text-gray-900">Execution Plan</h2>
+      <p class="mt-1 text-sm text-gray-500">
+        <% if @explain[:analyze] %>
+          Live execution analysis with actual timing and row counts
+        <% else %>
+          Estimated execution plan (run with ANALYZE for actual metrics)
+        <% end %>
+      </p>
+    </div>
+    <div class="p-6">
+      <% if @explain[:adapter] == "postgres" %>
+        <%= render_postgres_plan(@explain) %>
+      <% else %>
+        <!-- MySQL/Other adapters -->
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <% @explain[:columns].each do |c| %>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= c %></th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <% @explain[:rows].each_with_index do |row, index| %>
+                <tr class="<%= 'bg-gray-50' if index.even? %>">
+                  <% row.each do |cell| %>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono"><%= cell %></td>
+                  <% end %>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

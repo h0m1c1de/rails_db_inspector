@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rails DB Inspector</title>
+  <%= csrf_meta_tags %>
+  <%= csp_meta_tag %>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'mono': ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <%= yield :head %>
+</head>
+<body class="h-full bg-gray-50">
+  <div class="min-h-full">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+      <div class="mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 justify-between items-center">
+          <div class="flex items-center">
+            <h1 class="text-xl font-semibold text-gray-900">
+              <%= link_to "Rails DB Inspector", queries_path, class: "hover:text-blue-600 transition-colors" %>
+            </h1>
+          </div>
+          <div class="flex items-center space-x-4">
+            <span class="text-sm text-gray-500">Query Analysis & Performance Monitoring</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      <%= yield %>
+    </main>
+  </div>
+
+  <%= yield :scripts %>
+</body>
+</html>
