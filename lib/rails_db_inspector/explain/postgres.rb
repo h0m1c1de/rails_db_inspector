@@ -11,7 +11,7 @@ module RailsDbInspector
 
       def explain(sql, analyze: false)
         # Strip any existing EXPLAIN prefix to prevent doubling
-        clean_sql = sql.sub(/\A\s*EXPLAIN\s*(\([^)]*\))?\s*/i, '')
+        clean_sql = sql.sub(/\A\s*EXPLAIN\s*(\([^)]*\))?\s*/i, "")
 
         statement =
           if analyze

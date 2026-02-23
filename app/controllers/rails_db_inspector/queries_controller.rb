@@ -3,7 +3,7 @@
 module RailsDbInspector
   class QueriesController < ApplicationController
     include RailsDbInspector::ApplicationHelper
-    
+
     def index
       all_queries = RailsDbInspector::QueryStore.instance.all.reverse
       @queries = all_queries
@@ -13,7 +13,7 @@ module RailsDbInspector
 
     def show
       @query = RailsDbInspector::QueryStore.instance.find(params[:id])
-      return head :not_found unless @query
+      head :not_found unless @query
     end
 
     def explain

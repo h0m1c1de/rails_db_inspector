@@ -27,7 +27,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper, "coverage" do
   describe "#render_postgres_plan" do
     it "returns rendered summary + tree as html_safe string" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -36,7 +36,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper, "coverage" do
             "Plan Rows" => 10,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: false
       }
 
@@ -149,7 +149,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper, "coverage" do
     it "shows single time for <1s range" do
       t = Time.now
       group = {
-        queries: [build_query(timestamp: t)],
+        queries: [ build_query(timestamp: t) ],
         start_time: t
       }
       result = helper.format_group_time_range(group)
@@ -160,7 +160,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper, "coverage" do
     it "shows time range for >=1s range" do
       t = Time.now
       group = {
-        queries: [build_query(timestamp: t + 5)],
+        queries: [ build_query(timestamp: t + 5) ],
         start_time: t
       }
       result = helper.format_group_time_range(group)

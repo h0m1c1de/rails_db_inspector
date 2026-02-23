@@ -29,7 +29,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
     context "with a basic plan (no analyze)" do
       let(:plan_data) do
         {
-          plan: [{
+          plan: [ {
             "Plan" => {
               "Node Type" => "Seq Scan",
               "Total Cost" => 10.5,
@@ -37,7 +37,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
               "Plan Rows" => 100,
               "Plan Width" => 32
             }
-          }],
+          } ],
           analyze: false
         }
       end
@@ -54,7 +54,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
     context "with an analyze plan" do
       let(:plan_data) do
         {
-          plan: [{
+          plan: [ {
             "Execution Time" => 1.234,
             "Planning Time" => 0.456,
             "Plan" => {
@@ -69,7 +69,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
               "Shared Hit Blocks" => 10,
               "Shared Read Blocks" => 2
             }
-          }],
+          } ],
           analyze: true
         }
       end
@@ -103,7 +103,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
     context "with a simple seq scan plan" do
       let(:plan_data) do
         {
-          plan: [{
+          plan: [ {
             "Plan" => {
               "Node Type" => "Seq Scan",
               "Relation Name" => "users",
@@ -112,7 +112,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
               "Plan Rows" => 100,
               "Plan Width" => 32
             }
-          }],
+          } ],
           analyze: false
         }
       end
@@ -128,7 +128,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
     context "with nested plans (children)" do
       let(:plan_data) do
         {
-          plan: [{
+          plan: [ {
             "Plan" => {
               "Node Type" => "Hash Join",
               "Total Cost" => 100.0,
@@ -163,7 +163,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
                 }
               ]
             }
-          }],
+          } ],
           analyze: false
         }
       end
@@ -181,7 +181,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
     context "with analyze data including warnings" do
       let(:plan_data) do
         {
-          plan: [{
+          plan: [ {
             "Plan" => {
               "Node Type" => "Seq Scan",
               "Relation Name" => "users",
@@ -194,7 +194,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
               "Plan Width" => 32,
               "Rows Removed by Filter" => 9900
             }
-          }],
+          } ],
           analyze: true
         }
       end
@@ -211,7 +211,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
   describe "warning detection" do
     it "detects row estimate mismatches" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Plan Rows" => 1,
@@ -222,7 +222,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Actual Startup Time" => 0.0,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -250,7 +250,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
   describe "index usage analysis" do
     let(:plan_data) do
       {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Index Scan",
             "Index Name" => "idx_users_email",
@@ -263,7 +263,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Actual Startup Time" => 0.0,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: true
       }
     end
@@ -280,7 +280,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
   describe "buffer stats collection" do
     let(:plan_data) do
       {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Shared Hit Blocks" => 100,
@@ -291,7 +291,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Plan Rows" => 100,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: true
       }
     end
@@ -309,7 +309,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
   describe "recommendation generation" do
     it "generates recommendations for seq scans" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -322,7 +322,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Plan Width" => 32,
             "Filter" => "(status = 'active')"
           }
-        }],
+        } ],
         analyze: true
       }
 

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'securerandom'
-require 'erb'
+require "securerandom"
+require "erb"
 
 module RailsDbInspector
   module ApplicationHelper
@@ -17,7 +17,7 @@ module RailsDbInspector
 
         root_plan = @plan.first
         execution_time = root_plan["Execution Time"]
-        planning_time = root_plan["Planning Time"]  
+        planning_time = root_plan["Planning Time"]
         total_cost = root_plan["Plan"]["Total Cost"]
         actual_rows = root_plan["Plan"]["Actual Rows"] if @analyze
 
@@ -149,7 +149,7 @@ module RailsDbInspector
             <div class="mt-6">
               <h4 class="text-md font-medium text-gray-900 mb-3">Performance Hotspots</h4>
           HTML
-          
+
           hotspots.first(3).each do |hotspot|
             summary_html += <<~HTML
               <div class="bg-red-50 border border-red-200 rounded-md p-3 mb-2">
@@ -157,7 +157,7 @@ module RailsDbInspector
               </div>
             HTML
           end
-          
+
           summary_html += "</div>"
         end
 
@@ -170,25 +170,25 @@ module RailsDbInspector
 
           recommendations.each do |rec|
             icon = case rec[:severity]
-                   when :critical then "🔴"
-                   when :warning then "🟡"
-                   when :info then "🔵"
-                   else "💡"
-                   end
+            when :critical then "🔴"
+            when :warning then "🟡"
+            when :info then "🔵"
+            else "💡"
+            end
 
             border_class = case rec[:severity]
-                           when :critical then "border-red-300 bg-red-50"
-                           when :warning then "border-yellow-300 bg-yellow-50"
-                           when :info then "border-blue-300 bg-blue-50"
-                           else "border-gray-300 bg-gray-50"
-                           end
+            when :critical then "border-red-300 bg-red-50"
+            when :warning then "border-yellow-300 bg-yellow-50"
+            when :info then "border-blue-300 bg-blue-50"
+            else "border-gray-300 bg-gray-50"
+            end
 
             text_class = case rec[:severity]
-                         when :critical then "text-red-800"
-                         when :warning then "text-yellow-800"
-                         when :info then "text-blue-800"
-                         else "text-gray-800"
-                         end
+            when :critical then "text-red-800"
+            when :warning then "text-yellow-800"
+            when :info then "text-blue-800"
+            else "text-gray-800"
+            end
 
             summary_html += <<~HTML
               <div class="border #{border_class} rounded-md p-4 mb-3">
@@ -228,7 +228,7 @@ module RailsDbInspector
         root_plan = @plan.first["Plan"]
         tree_html = '<div class="font-mono text-sm space-y-2">'
         tree_html += render_node(root_plan, 0)
-        tree_html += '</div>'
+        tree_html += "</div>"
         tree_html
       end
 
@@ -237,7 +237,7 @@ module RailsDbInspector
       def render_node(node, depth)
         node_id = "node_#{SecureRandom.hex(6)}"
         warnings = detect_warnings(node)
-        
+
         html = <<~HTML
           <div class="border border-gray-200 rounded-lg bg-white shadow-sm">
             <div class="p-3 cursor-pointer select-none relative bg-gray-50 border-b border-gray-200 rounded-t-lg hover:bg-gray-100" onclick="toggleNode('#{node_id}')">
@@ -248,10 +248,10 @@ module RailsDbInspector
         end
 
         html += '<div class="'
-        html += has_children?(node) ? 'ml-8' : 'ml-3'
+        html += has_children?(node) ? "ml-8" : "ml-3"
         html += ' flex flex-wrap items-center gap-2">'
         html += render_node_title(node, warnings)
-        html += '</div></div>'
+        html += "</div></div>"
 
         html += '<div class="plan-node-body" id="' + node_id + '">'
         html += render_node_details(node)
@@ -262,24 +262,24 @@ module RailsDbInspector
           children.each do |child|
             html += render_node(child, depth + 1)
           end
-          html += '</div>'
+          html += "</div>"
         end
 
-        html += '</div></div>'
+        html += "</div></div>"
         html
       end
 
       def render_node_title(node, warnings)
         node_type = node["Node Type"]
         title_html = "<span class=\"font-bold text-gray-700"
-        
+
         # Add special styling for index operations
         if node_type.include?("Index") || node_type == "Bitmap Index Scan"
           title_html += " text-green-700 bg-green-100 px-2 py-1 rounded"
         elsif node_type == "Seq Scan"
           title_html += " text-red-700 bg-red-100 px-2 py-1 rounded"
         end
-        
+
         title_html += "\">#{ERB::Util.html_escape(node_type)}</span>"
 
         # Add relation name
@@ -306,7 +306,7 @@ module RailsDbInspector
           estimated = node["Plan Rows"]
           abs_diff = (actual - estimated).abs
           ratio = estimated > 0 ? (actual.to_f / estimated).round(2) : (actual == 0 ? 1.0 : "∞")
-          
+
           # Only flag as problematic when the absolute difference is large enough
           # to actually affect plan choice. Small diffs (e.g. 0 vs 1) are harmless.
           if abs_diff <= 100
@@ -326,7 +326,7 @@ module RailsDbInspector
           else
             ratio_class = "text-red-600 bg-red-100 font-bold"
           end
-          
+
           title_html += " <span class=\"#{ratio_class} px-2 py-1 rounded\">#{number_with_delimiter(actual)} rows"
           if ratio_class.include?("red")
             title_html += " ⚠️ (est: #{number_with_delimiter(estimated)})"
@@ -354,7 +354,7 @@ module RailsDbInspector
           else
             badge_class = "bg-gray-100 text-gray-800"
           end
-          
+
           title_html += " <span class=\"inline-flex items-center px-2 py-1 rounded text-xs font-medium #{badge_class}\">#{ERB::Util.html_escape(warning[:text])}</span>"
         end
 
@@ -366,18 +366,18 @@ module RailsDbInspector
 
         # Show key plan details
         details = []
-        
+
         if node["Startup Cost"] && node["Total Cost"]
-          details << ["Cost", "#{node["Startup Cost"]}..#{node["Total Cost"]}", "Startup cost (before first row) to total cost (all rows). Arbitrary units — compare relative to other nodes."]
+          details << [ "Cost", "#{node["Startup Cost"]}..#{node["Total Cost"]}", "Startup cost (before first row) to total cost (all rows). Arbitrary units — compare relative to other nodes." ]
         end
 
         if @analyze
           if node["Actual Startup Time"] && node["Actual Total Time"]
-            details << ["Actual Time", "#{node["Actual Startup Time"]}..#{node["Actual Total Time"]} ms", "Real time: from start until all rows returned for this node."]
+            details << [ "Actual Time", "#{node["Actual Startup Time"]}..#{node["Actual Total Time"]} ms", "Real time: from start until all rows returned for this node." ]
           end
-          
+
           if node["Actual Loops"] && node["Actual Loops"] > 1
-            details << ["Loops", node["Actual Loops"].to_s, "Number of times this operation was repeated (e.g. once per row from a parent join)."]
+            details << [ "Loops", node["Actual Loops"].to_s, "Number of times this operation was repeated (e.g. once per row from a parent join)." ]
           end
 
           if node["Shared Hit Blocks"]
@@ -385,21 +385,21 @@ module RailsDbInspector
             buffers << "hit=#{node["Shared Hit Blocks"]}" if node["Shared Hit Blocks"] > 0
             buffers << "read=#{node["Shared Read Blocks"]}" if node["Shared Read Blocks"] && node["Shared Read Blocks"] > 0
             buffers << "written=#{node["Shared Written Blocks"]}" if node["Shared Written Blocks"] && node["Shared Written Blocks"] > 0
-            details << ["Buffers", buffers.join(", "), "Shared memory pages accessed. 'hit' = cached in RAM, 'read' = fetched from disk."] if buffers.any?
+            details << [ "Buffers", buffers.join(", "), "Shared memory pages accessed. 'hit' = cached in RAM, 'read' = fetched from disk." ] if buffers.any?
           end
         end
 
         # Index-specific details
         if node["Index Cond"]
-          details << ["Index Condition", node["Index Cond"], "The WHERE clause condition evaluated using the index for fast lookup."]
+          details << [ "Index Condition", node["Index Cond"], "The WHERE clause condition evaluated using the index for fast lookup." ]
         end
 
         if node["Recheck Cond"]
-          details << ["Recheck Condition", node["Recheck Cond"], "Condition re-verified against actual rows after a bitmap scan."]
+          details << [ "Recheck Condition", node["Recheck Cond"], "Condition re-verified against actual rows after a bitmap scan." ]
         end
 
         if node["Filter"]
-          details << ["Filter", node["Filter"], "Rows matching the scan are then filtered by this condition. Rows that don't match are discarded."]
+          details << [ "Filter", node["Filter"], "Rows matching the scan are then filtered by this condition. Rows that don't match are discarded." ]
         end
 
         if node["Rows Removed by Filter"] && @analyze
@@ -408,21 +408,21 @@ module RailsDbInspector
           total = actual + removed
           if removed > 0
             efficiency = total > 0 ? ((actual.to_f / total) * 100).round(1) : 0
-            details << ["Filter Efficiency", "#{efficiency}% (#{number_with_delimiter(removed)} rows filtered out)", "Percentage of scanned rows that matched the filter. Low efficiency may indicate a missing or suboptimal index."]
+            details << [ "Filter Efficiency", "#{efficiency}% (#{number_with_delimiter(removed)} rows filtered out)", "Percentage of scanned rows that matched the filter. Low efficiency may indicate a missing or suboptimal index." ]
           end
         end
 
         if node["Join Type"]
-          details << ["Join Type", node["Join Type"], "How two result sets are combined (e.g. Hash, Nested Loop, Merge)."]
+          details << [ "Join Type", node["Join Type"], "How two result sets are combined (e.g. Hash, Nested Loop, Merge)." ]
         end
 
         if node["Hash Cond"]
-          details << ["Hash Condition", node["Hash Cond"], "The equality condition used to match rows in a hash join."]
+          details << [ "Hash Condition", node["Hash Cond"], "The equality condition used to match rows in a hash join." ]
         end
 
         if node["Sort Key"]
           sort_keys = node["Sort Key"].is_a?(Array) ? node["Sort Key"].join(", ") : node["Sort Key"]
-          details << ["Sort Key", sort_keys, "Column(s) used to order the result set."]
+          details << [ "Sort Key", sort_keys, "Column(s) used to order the result set." ]
         end
 
         if node["Sort Method"] && @analyze
@@ -432,14 +432,14 @@ module RailsDbInspector
             sort_info += node["Sort Space Type"] == "Disk" ? " on disk" : " in memory"
             sort_info += ")"
           end
-          details << ["Sort Method", sort_info, "Algorithm used for sorting. In-memory is fast; disk-based sorting indicates insufficient work_mem."]
+          details << [ "Sort Method", sort_info, "Algorithm used for sorting. In-memory is fast; disk-based sorting indicates insufficient work_mem." ]
         end
 
         # Split details into two columns
         left_details = details.first((details.length + 1) / 2)
         right_details = details.drop(left_details.length)
 
-        [left_details, right_details].each do |column_details|
+        [ left_details, right_details ].each do |column_details|
           details_html += '<div class="space-y-2">'
           column_details.each do |label, value, explanation|
             details_html += <<~HTML
@@ -454,10 +454,10 @@ module RailsDbInspector
             end
             details_html += "</div>"
           end
-          details_html += '</div>'
+          details_html += "</div>"
         end
 
-        details_html += '</div></div>'
+        details_html += "</div></div>"
         details_html
       end
 
@@ -468,7 +468,7 @@ module RailsDbInspector
         if node["Node Type"] == "Seq Scan"
           table_name = node["Relation Name"] || "table"
           row_count = node["Plan Rows"] || 0
-          
+
           if row_count > 10000
             warnings << { type: "seq-scan", text: "Large Seq Scan (#{number_with_delimiter(row_count)} rows on #{table_name})" }
           elsif row_count > 1000
@@ -553,14 +553,14 @@ module RailsDbInspector
 
       def analyze_index_usage(plan_node, analysis = { index_scans: 0, total_scans: 0, indexes_used: [], warnings: [], seq_scans: [] })
         node_type = plan_node["Node Type"]
-        
+
         # Count scan operations
         if node_type.include?("Scan") || node_type.include?("Seek")
           analysis[:total_scans] += 1
-          
+
           if node_type.include?("Index") || node_type == "Bitmap Index Scan"
             analysis[:index_scans] += 1
-            
+
             # Track which indexes are being used
             if plan_node["Index Name"]
               index_name = plan_node["Index Name"]
@@ -571,18 +571,18 @@ module RailsDbInspector
           elsif node_type == "Seq Scan"
             table_name = plan_node["Relation Name"] || "unknown table"
             row_count = plan_node["Plan Rows"] || 0
-            
+
             # Collect columns from filter conditions for index suggestions
             filter_cols = []
             filter_cols += extract_columns_from_condition(plan_node["Filter"]) if plan_node["Filter"]
-            
+
             analysis[:seq_scans] << {
               table: table_name,
               rows: row_count,
               filter: plan_node["Filter"],
               columns: filter_cols
             }
-            
+
             if row_count > 10000
               analysis[:warnings] << "Large sequential scan on #{table_name} (#{number_with_delimiter(row_count)} rows)"
             elsif row_count > 1000 && plan_node["Filter"]
@@ -590,14 +590,14 @@ module RailsDbInspector
             end
           end
         end
-        
+
         # Recurse into child nodes
         if plan_node["Plans"]
           plan_node["Plans"].each do |child|
             analyze_index_usage(child, analysis)
           end
         end
-        
+
         analysis
       end
 
@@ -731,7 +731,7 @@ module RailsDbInspector
             severity: :warning,
             title: "Sort spilled to disk (#{space}kB)",
             description: "The sort couldn't fit in memory and used disk, which is much slower. This happens when work_mem is too small for the data being sorted.",
-            action: "SET work_mem = '#{[(space * 2 / 1024.0).ceil, 4].max}MB'; -- or increase work_mem in postgresql.conf"
+            action: "SET work_mem = '#{[ (space * 2 / 1024.0).ceil, 4 ].max}MB'; -- or increase work_mem in postgresql.conf"
           }
         end
 
@@ -780,7 +780,7 @@ module RailsDbInspector
               severity: :info,
               title: "Large hash table (#{(node["Peak Memory Usage"] / 1024.0).round(1)}MB)",
               description: "Building the hash table for this join used significant memory. Under concurrent load, this could cause memory pressure.",
-              action: "SET work_mem = '#{[(node["Peak Memory Usage"] / 512.0).ceil, 4].max}MB'; -- ensure enough memory for the hash"
+              action: "SET work_mem = '#{[ (node["Peak Memory Usage"] / 512.0).ceil, 4 ].max}MB'; -- ensure enough memory for the hash"
             }
           end
         end

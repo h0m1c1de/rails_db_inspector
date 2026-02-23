@@ -98,7 +98,6 @@ RSpec.describe RailsDbInspector::ApplicationHelper do
   end
 
   describe "#group_queries_by_action" do
-
     it "returns empty array for empty queries" do
       expect(helper.group_queries_by_action([])).to eq []
     end
@@ -139,9 +138,8 @@ RSpec.describe RailsDbInspector::ApplicationHelper do
   end
 
   describe "#detect_n_plus_one" do
-
     it "returns empty array for fewer than 3 queries" do
-      queries = [build_query, build_query]
+      queries = [ build_query, build_query ]
       expect(helper.detect_n_plus_one(queries)).to eq []
     end
 
@@ -208,14 +206,14 @@ RSpec.describe RailsDbInspector::ApplicationHelper do
     it "serializes schema hash to JSON" do
       schema = {
         "users" => {
-          columns: [{ name: "id", type: "integer", nullable: false, default: nil }],
-          indexes: [{ name: "idx_users_pk", columns: ["id"], unique: true }],
-          foreign_keys: [{ column: "org_id", to_table: "orgs", primary_key: "id" }],
+          columns: [ { name: "id", type: "integer", nullable: false, default: nil } ],
+          indexes: [ { name: "idx_users_pk", columns: [ "id" ], unique: true } ],
+          foreign_keys: [ { column: "org_id", to_table: "orgs", primary_key: "id" } ],
           primary_key: "id",
           row_count: 100,
-          associations: [{ name: "posts", macro: "has_many", target_table: "posts", foreign_key: "user_id", through: nil }],
-          missing_indexes: ["org_id"],
-          polymorphic_columns: [{ name: "taggable", type_column: "taggable_type", id_column: "taggable_id" }]
+          associations: [ { name: "posts", macro: "has_many", target_table: "posts", foreign_key: "user_id", through: nil } ],
+          missing_indexes: [ "org_id" ],
+          polymorphic_columns: [ { name: "taggable", type_column: "taggable_type", id_column: "taggable_id" } ]
         }
       }
 
@@ -224,7 +222,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper do
 
       expect(parsed["users"]["columns"].first["name"]).to eq "id"
       expect(parsed["users"]["indexes"].first["unique"]).to be true
-      expect(parsed["users"]["missing_indexes"]).to eq ["org_id"]
+      expect(parsed["users"]["missing_indexes"]).to eq [ "org_id" ]
       expect(parsed["users"]["polymorphic_columns"].first["name"]).to eq "taggable"
     end
   end

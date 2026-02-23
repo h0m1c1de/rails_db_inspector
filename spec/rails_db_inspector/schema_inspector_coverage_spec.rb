@@ -24,7 +24,7 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
       bad_model = Class.new(ActiveRecord::Base)
       allow(bad_model).to receive(:table_name).and_raise(StandardError, "boom")
       allow(bad_model).to receive(:abstract_class?).and_return(false)
-      allow(ActiveRecord::Base).to receive(:descendants).and_return([bad_model])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ bad_model ])
 
       result = inspector.send(:find_model_for_table, "users")
       expect(result).to be_nil
@@ -41,7 +41,7 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
       abstract_model = Class.new(ActiveRecord::Base)
       allow(abstract_model).to receive(:table_name).and_return("users")
       allow(abstract_model).to receive(:abstract_class?).and_return(true)
-      allow(ActiveRecord::Base).to receive(:descendants).and_return([abstract_model])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ abstract_model ])
 
       result = inspector.send(:find_model_for_table, "users")
       expect(result).to be_nil
@@ -56,7 +56,7 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
 
       stub_const("Rails", double(
         application: double(
-          config: double(paths: { "app/models" => [dir] }),
+          config: double(paths: { "app/models" => [ dir ] }),
           eager_load!: nil
         )
       ))
@@ -75,7 +75,7 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
 
       stub_const("Rails", double(
         application: double(
-          config: double(paths: { "app/models" => [dir] }),
+          config: double(paths: { "app/models" => [ dir ] }),
           eager_load!: nil
         )
       ))
@@ -149,8 +149,8 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
         options: {}
       )
       allow(assoc).to receive(:klass).and_raise(StandardError, "cannot load")
-      allow(model).to receive(:reflect_on_all_associations).and_return([assoc])
-      allow(ActiveRecord::Base).to receive(:descendants).and_return([model])
+      allow(model).to receive(:reflect_on_all_associations).and_return([ assoc ])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ model ])
 
       result = inspector.send(:introspect_associations, "users")
       expect(result.first[:target_table]).to be_nil
@@ -168,8 +168,8 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
         options: { through: :taggings }
       )
       allow(assoc).to receive(:klass).and_return(double(table_name: "tags"))
-      allow(model).to receive(:reflect_on_all_associations).and_return([assoc])
-      allow(ActiveRecord::Base).to receive(:descendants).and_return([model])
+      allow(model).to receive(:reflect_on_all_associations).and_return([ assoc ])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ model ])
 
       result = inspector.send(:introspect_associations, "users")
       expect(result.first[:through]).to eq "taggings"
@@ -180,7 +180,7 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
       allow(model).to receive(:table_name).and_return("users")
       allow(model).to receive(:abstract_class?).and_return(false)
       allow(model).to receive(:reflect_on_all_associations).and_raise(StandardError, "boom")
-      allow(ActiveRecord::Base).to receive(:descendants).and_return([model])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ model ])
 
       result = inspector.send(:introspect_associations, "users")
       expect(result).to eq []

@@ -10,8 +10,8 @@ RSpec.describe RailsDbInspector::Explain::MySql do
     context "without analyze" do
       it "runs EXPLAIN and returns columns and rows" do
         result = double("result",
-          columns: ["id", "select_type", "table"],
-          rows: [[1, "SIMPLE", "users"]]
+          columns: [ "id", "select_type", "table" ],
+          rows: [ [ 1, "SIMPLE", "users" ] ]
         )
 
         expect(connection).to receive(:exec_query)
@@ -22,8 +22,8 @@ RSpec.describe RailsDbInspector::Explain::MySql do
 
         expect(output[:adapter]).to eq "mysql"
         expect(output[:analyze]).to be false
-        expect(output[:columns]).to eq ["id", "select_type", "table"]
-        expect(output[:rows]).to eq [[1, "SIMPLE", "users"]]
+        expect(output[:columns]).to eq [ "id", "select_type", "table" ]
+        expect(output[:rows]).to eq [ [ 1, "SIMPLE", "users" ] ]
       end
 
       it "strips existing EXPLAIN prefix" do
@@ -49,7 +49,7 @@ RSpec.describe RailsDbInspector::Explain::MySql do
 
     context "with analyze" do
       it "runs EXPLAIN ANALYZE" do
-        result = double("result", columns: ["EXPLAIN"], rows: [["-> Table scan"]])
+        result = double("result", columns: [ "EXPLAIN" ], rows: [ [ "-> Table scan" ] ])
 
         expect(connection).to receive(:exec_query)
           .with("EXPLAIN ANALYZE SELECT * FROM users")

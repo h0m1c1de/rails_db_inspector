@@ -3,7 +3,7 @@
 require "spec_helper"
 
 RSpec.describe RailsDbInspector::DevWidgetMiddleware do
-  let(:inner_app) { ->(env) { [200, { "Content-Type" => "text/html" }, ["<html><body></body></html>"]] } }
+  let(:inner_app) { ->(env) { [ 200, { "Content-Type" => "text/html" }, [ "<html><body></body></html>" ] ] } }
   subject(:middleware) { described_class.new(inner_app) }
 
   let(:env) { { "PATH_INFO" => "/some/page", "REQUEST_METHOD" => "GET" } }
@@ -21,7 +21,7 @@ RSpec.describe RailsDbInspector::DevWidgetMiddleware do
         allow(route_app).to receive(:respond_to?).with(:app).and_return(true)
         path_spec = double("path_spec", to_s: "/db_inspector(.:format)")
         route = double("route", app: route_app, path: double(spec: path_spec))
-        routes = double("routes", routes: [route])
+        routes = double("routes", routes: [ route ])
         app = double("rails_app", routes: routes)
         allow(Rails).to receive(:application).and_return(app)
       end
@@ -44,17 +44,17 @@ RSpec.describe RailsDbInspector::DevWidgetMiddleware do
     end
 
     context "when response is not HTML" do
-      let(:inner_app) { ->(env) { [200, { "Content-Type" => "application/json" }, ['{"ok":true}']] } }
+      let(:inner_app) { ->(env) { [ 200, { "Content-Type" => "application/json" }, [ '{"ok":true}' ] ] } }
 
       it "passes through without modification" do
         status, headers, body = middleware.call(env)
 
-        expect(body).to eq ['{"ok":true}']
+        expect(body).to eq [ '{"ok":true}' ]
       end
     end
 
     context "when status is not 200" do
-      let(:inner_app) { ->(env) { [404, { "Content-Type" => "text/html" }, ["<html><body>Not Found</body></html>"]] } }
+      let(:inner_app) { ->(env) { [ 404, { "Content-Type" => "text/html" }, [ "<html><body>Not Found</body></html>" ] ] } }
 
       it "passes through without modification" do
         status, _headers, body = middleware.call(env)
@@ -70,7 +70,7 @@ RSpec.describe RailsDbInspector::DevWidgetMiddleware do
         allow(route_app).to receive(:respond_to?).with(:app).and_return(true)
         path_spec = double("path_spec", to_s: "/db_inspector(.:format)")
         route = double("route", app: route_app, path: double(spec: path_spec))
-        routes = double("routes", routes: [route])
+        routes = double("routes", routes: [ route ])
         app = double("rails_app", routes: routes)
         allow(Rails).to receive(:application).and_return(app)
       end
@@ -98,14 +98,14 @@ RSpec.describe RailsDbInspector::DevWidgetMiddleware do
     end
 
     context "when body has no </body> tag" do
-      let(:inner_app) { ->(env) { [200, { "Content-Type" => "text/html" }, ["<div>partial</div>"]] } }
+      let(:inner_app) { ->(env) { [ 200, { "Content-Type" => "text/html" }, [ "<div>partial</div>" ] ] } }
 
       before do
         route_app = double("route_app", app: RailsDbInspector::Engine)
         allow(route_app).to receive(:respond_to?).with(:app).and_return(true)
         path_spec = double("path_spec", to_s: "/db_inspector(.:format)")
         route = double("route", app: route_app, path: double(spec: path_spec))
-        routes = double("routes", routes: [route])
+        routes = double("routes", routes: [ route ])
         app = double("rails_app", routes: routes)
         allow(Rails).to receive(:application).and_return(app)
       end
@@ -118,7 +118,7 @@ RSpec.describe RailsDbInspector::DevWidgetMiddleware do
     end
 
     context "when Content-Type header is nil" do
-      let(:inner_app) { ->(env) { [200, {}, ["<html><body></body></html>"]] } }
+      let(:inner_app) { ->(env) { [ 200, {}, [ "<html><body></body></html>" ] ] } }
 
       it "passes through without modification" do
         status, _headers, body = middleware.call(env)
@@ -132,7 +132,7 @@ RSpec.describe RailsDbInspector::DevWidgetMiddleware do
       allow(closeable_body).to receive(:respond_to?).with(:close).and_return(true)
       expect(closeable_body).to receive(:close)
 
-      app = ->(env) { [200, { "Content-Type" => "text/html" }, closeable_body] }
+      app = ->(env) { [ 200, { "Content-Type" => "text/html" }, closeable_body ] }
       mw = described_class.new(app)
 
       routes = double("routes", routes: [])

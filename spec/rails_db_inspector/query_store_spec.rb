@@ -50,7 +50,7 @@ RSpec.describe RailsDbInspector::QueryStore do
       q2 = store.add(**base_attrs.merge(sql: "SELECT 2"))
 
       all = store.all
-      expect(all.map(&:sql)).to eq ["SELECT 1", "SELECT 2"]
+      expect(all.map(&:sql)).to eq [ "SELECT 1", "SELECT 2" ]
     end
 
     it "returns a dup so external mutations don't affect the store" do
@@ -100,7 +100,7 @@ RSpec.describe RailsDbInspector::QueryStore do
 
       all = store.all
       expect(all.length).to eq 3
-      expect(all.map(&:sql)).to eq ["SELECT 2", "SELECT 3", "SELECT 4"]
+      expect(all.map(&:sql)).to eq [ "SELECT 2", "SELECT 3", "SELECT 4" ]
       expect(store.find(q1.id)).to be_nil
     end
 
@@ -115,26 +115,26 @@ RSpec.describe RailsDbInspector::QueryStore do
   describe "normalize_binds" do
     it "handles ActiveRecord-style bind objects with name and value_before_type_cast" do
       bind = double("bind", name: "id", value_before_type_cast: 42, type: double(type: :integer))
-      q = store.add(**base_attrs.merge(binds: [bind]))
+      q = store.add(**base_attrs.merge(binds: [ bind ]))
 
-      expect(q.binds).to eq [{ name: "id", value: 42, type: :integer }]
+      expect(q.binds).to eq [ { name: "id", value: 42, type: :integer } ]
     end
 
     it "handles bind with nil type" do
       bind = double("bind", name: "id", value_before_type_cast: 42, type: nil)
-      q = store.add(**base_attrs.merge(binds: [bind]))
+      q = store.add(**base_attrs.merge(binds: [ bind ]))
 
-      expect(q.binds).to eq [{ name: "id", value: 42, type: nil }]
+      expect(q.binds).to eq [ { name: "id", value: 42, type: nil } ]
     end
 
     it "handles array-style binds [name, value]" do
-      q = store.add(**base_attrs.merge(binds: [["id", 42]]))
-      expect(q.binds).to eq [{ name: "id", value: 42, type: nil }]
+      q = store.add(**base_attrs.merge(binds: [ [ "id", 42 ] ]))
+      expect(q.binds).to eq [ { name: "id", value: 42, type: nil } ]
     end
 
     it "handles raw values as fallback" do
-      q = store.add(**base_attrs.merge(binds: [99]))
-      expect(q.binds).to eq [{ name: nil, value: "99", type: nil }]
+      q = store.add(**base_attrs.merge(binds: [ 99 ]))
+      expect(q.binds).to eq [ { name: nil, value: "99", type: nil } ]
     end
 
     it "returns empty array for non-array binds" do

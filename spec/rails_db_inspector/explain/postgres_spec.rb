@@ -9,8 +9,8 @@ RSpec.describe RailsDbInspector::Explain::Postgres do
   describe "#explain" do
     context "without analyze" do
       it "runs EXPLAIN (FORMAT JSON) and returns parsed plan" do
-        plan_json = [{ "Plan" => { "Node Type" => "Seq Scan" } }].to_json
-        result = double("result", rows: [[plan_json]])
+        plan_json = [ { "Plan" => { "Node Type" => "Seq Scan" } } ].to_json
+        result = double("result", rows: [ [ plan_json ] ])
 
         expect(connection).to receive(:exec_query)
           .with("EXPLAIN (FORMAT JSON) SELECT * FROM users")
@@ -25,8 +25,8 @@ RSpec.describe RailsDbInspector::Explain::Postgres do
       end
 
       it "strips existing EXPLAIN prefix to prevent doubling" do
-        plan_json = [{}].to_json
-        result = double("result", rows: [[plan_json]])
+        plan_json = [ {} ].to_json
+        result = double("result", rows: [ [ plan_json ] ])
 
         expect(connection).to receive(:exec_query)
           .with("EXPLAIN (FORMAT JSON) SELECT 1")
@@ -36,8 +36,8 @@ RSpec.describe RailsDbInspector::Explain::Postgres do
       end
 
       it "strips EXPLAIN with options prefix" do
-        plan_json = [{}].to_json
-        result = double("result", rows: [[plan_json]])
+        plan_json = [ {} ].to_json
+        result = double("result", rows: [ [ plan_json ] ])
 
         expect(connection).to receive(:exec_query)
           .with("EXPLAIN (FORMAT JSON) SELECT 1")
@@ -49,8 +49,8 @@ RSpec.describe RailsDbInspector::Explain::Postgres do
 
     context "with analyze" do
       it "runs EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)" do
-        plan_json = [{ "Plan" => {}, "Execution Time" => 0.5 }].to_json
-        result = double("result", rows: [[plan_json]])
+        plan_json = [ { "Plan" => {}, "Execution Time" => 0.5 } ].to_json
+        result = double("result", rows: [ [ plan_json ] ])
 
         expect(connection).to receive(:exec_query)
           .with("EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON) SELECT * FROM users")
@@ -72,8 +72,8 @@ RSpec.describe RailsDbInspector::Explain::Postgres do
     end
 
     it "handles already-parsed plan data (not a string)" do
-      plan_data = [{ "Plan" => { "Node Type" => "Seq Scan" } }]
-      result = double("result", rows: [[plan_data]])
+      plan_data = [ { "Plan" => { "Node Type" => "Seq Scan" } } ]
+      result = double("result", rows: [ [ plan_data ] ])
 
       allow(connection).to receive(:exec_query).and_return(result)
 

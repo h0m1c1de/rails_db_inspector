@@ -27,7 +27,7 @@ RSpec.describe RailsDbInspector::SchemaInspector do
   end
 
   let(:index) do
-    double("index", name: "index_posts_on_user_id", columns: ["user_id"], unique: false)
+    double("index", name: "index_posts_on_user_id", columns: [ "user_id" ], unique: false)
   end
 
   let(:foreign_key) do
@@ -36,14 +36,14 @@ RSpec.describe RailsDbInspector::SchemaInspector do
 
   describe "#introspect" do
     before do
-      allow(connection).to receive(:tables).and_return(["users", "posts", "schema_migrations", "ar_internal_metadata"])
-      allow(connection).to receive(:columns).with("users").and_return([column_id, column_name])
-      allow(connection).to receive(:columns).with("posts").and_return([column_id, column_user_id])
+      allow(connection).to receive(:tables).and_return([ "users", "posts", "schema_migrations", "ar_internal_metadata" ])
+      allow(connection).to receive(:columns).with("users").and_return([ column_id, column_name ])
+      allow(connection).to receive(:columns).with("posts").and_return([ column_id, column_user_id ])
       allow(connection).to receive(:indexes).with("users").and_return([])
-      allow(connection).to receive(:indexes).with("posts").and_return([index])
+      allow(connection).to receive(:indexes).with("posts").and_return([ index ])
       allow(connection).to receive(:respond_to?).with(:foreign_keys).and_return(true)
       allow(connection).to receive(:foreign_keys).with("users").and_return([])
-      allow(connection).to receive(:foreign_keys).with("posts").and_return([foreign_key])
+      allow(connection).to receive(:foreign_keys).with("posts").and_return([ foreign_key ])
       allow(connection).to receive(:primary_key).with("users").and_return("id")
       allow(connection).to receive(:primary_key).with("posts").and_return("id")
       allow(connection).to receive(:quote_table_name) { |t| "\"#{t}\"" }
@@ -61,7 +61,7 @@ RSpec.describe RailsDbInspector::SchemaInspector do
 
     it "filters out schema_migrations and ar_internal_metadata" do
       schema = inspector.introspect
-      expect(schema.keys).to match_array(["posts", "users"])
+      expect(schema.keys).to match_array([ "posts", "users" ])
     end
 
     it "includes columns for each table" do
@@ -80,7 +80,7 @@ RSpec.describe RailsDbInspector::SchemaInspector do
 
       expect(post_indexes.length).to eq 1
       expect(post_indexes.first[:name]).to eq "index_posts_on_user_id"
-      expect(post_indexes.first[:columns]).to eq ["user_id"]
+      expect(post_indexes.first[:columns]).to eq [ "user_id" ]
       expect(post_indexes.first[:unique]).to be false
     end
 
@@ -114,14 +114,14 @@ RSpec.describe RailsDbInspector::SchemaInspector do
       allow(connection).to receive(:indexes).with("posts").and_return([])
 
       schema = inspector.introspect
-      expect(schema["posts"][:missing_indexes]).to eq ["user_id"]
+      expect(schema["posts"][:missing_indexes]).to eq [ "user_id" ]
     end
   end
 
   describe "#introspect - foreign_keys not supported" do
     before do
-      allow(connection).to receive(:tables).and_return(["users"])
-      allow(connection).to receive(:columns).with("users").and_return([column_id])
+      allow(connection).to receive(:tables).and_return([ "users" ])
+      allow(connection).to receive(:columns).with("users").and_return([ column_id ])
       allow(connection).to receive(:indexes).with("users").and_return([])
       allow(connection).to receive(:respond_to?).with(:foreign_keys).and_return(false)
       allow(connection).to receive(:primary_key).with("users").and_return("id")
@@ -144,8 +144,8 @@ RSpec.describe RailsDbInspector::SchemaInspector do
 
   describe "#introspect - safe_row_count error handling" do
     before do
-      allow(connection).to receive(:tables).and_return(["users"])
-      allow(connection).to receive(:columns).with("users").and_return([column_id])
+      allow(connection).to receive(:tables).and_return([ "users" ])
+      allow(connection).to receive(:columns).with("users").and_return([ column_id ])
       allow(connection).to receive(:indexes).with("users").and_return([])
       allow(connection).to receive(:respond_to?).with(:foreign_keys).and_return(false)
       allow(connection).to receive(:primary_key).with("users").and_return("id")
@@ -168,9 +168,9 @@ RSpec.describe RailsDbInspector::SchemaInspector do
 
   describe "polymorphic columns detection" do
     before do
-      allow(connection).to receive(:tables).and_return(["comments"])
+      allow(connection).to receive(:tables).and_return([ "comments" ])
       allow(connection).to receive(:columns).with("comments")
-        .and_return([column_id, column_commentable_type, column_commentable_id])
+        .and_return([ column_id, column_commentable_type, column_commentable_id ])
       allow(connection).to receive(:indexes).with("comments").and_return([])
       allow(connection).to receive(:respond_to?).with(:foreign_keys).and_return(false)
       allow(connection).to receive(:primary_key).with("comments").and_return("id")
@@ -198,12 +198,12 @@ RSpec.describe RailsDbInspector::SchemaInspector do
 
   describe "#relationships" do
     before do
-      allow(connection).to receive(:tables).and_return(["users", "posts"])
+      allow(connection).to receive(:tables).and_return([ "users", "posts" ])
       allow(connection).to receive(:respond_to?).with(:foreign_keys).and_return(true)
       allow(connection).to receive(:foreign_keys).with("users").and_return([])
-      allow(connection).to receive(:foreign_keys).with("posts").and_return([foreign_key])
-      allow(connection).to receive(:columns).with("users").and_return([column_id])
-      allow(connection).to receive(:columns).with("posts").and_return([column_id, column_user_id])
+      allow(connection).to receive(:foreign_keys).with("posts").and_return([ foreign_key ])
+      allow(connection).to receive(:columns).with("users").and_return([ column_id ])
+      allow(connection).to receive(:columns).with("posts").and_return([ column_id, column_user_id ])
     end
 
     it "includes foreign key relationships" do
@@ -237,9 +237,9 @@ RSpec.describe RailsDbInspector::SchemaInspector do
     end
 
     it "skips convention relationships when referenced table doesn't exist" do
-      allow(connection).to receive(:tables).and_return(["posts"])
+      allow(connection).to receive(:tables).and_return([ "posts" ])
       allow(connection).to receive(:foreign_keys).with("posts").and_return([])
-      allow(connection).to receive(:columns).with("posts").and_return([column_id, column_user_id])
+      allow(connection).to receive(:columns).with("posts").and_return([ column_id, column_user_id ])
 
       rels = inspector.relationships
       expect(rels).to be_empty
@@ -248,10 +248,10 @@ RSpec.describe RailsDbInspector::SchemaInspector do
 
   describe "#relationships - foreign_keys not supported" do
     before do
-      allow(connection).to receive(:tables).and_return(["users", "posts"])
+      allow(connection).to receive(:tables).and_return([ "users", "posts" ])
       allow(connection).to receive(:respond_to?).with(:foreign_keys).and_return(false)
-      allow(connection).to receive(:columns).with("users").and_return([column_id])
-      allow(connection).to receive(:columns).with("posts").and_return([column_id, column_user_id])
+      allow(connection).to receive(:columns).with("users").and_return([ column_id ])
+      allow(connection).to receive(:columns).with("posts").and_return([ column_id, column_user_id ])
     end
 
     it "falls back to convention-only relationships" do
@@ -263,8 +263,8 @@ RSpec.describe RailsDbInspector::SchemaInspector do
 
   describe "associations introspection" do
     before do
-      allow(connection).to receive(:tables).and_return(["users"])
-      allow(connection).to receive(:columns).with("users").and_return([column_id])
+      allow(connection).to receive(:tables).and_return([ "users" ])
+      allow(connection).to receive(:columns).with("users").and_return([ column_id ])
       allow(connection).to receive(:indexes).with("users").and_return([])
       allow(connection).to receive(:respond_to?).with(:foreign_keys).and_return(false)
       allow(connection).to receive(:primary_key).with("users").and_return("id")
@@ -285,12 +285,12 @@ RSpec.describe RailsDbInspector::SchemaInspector do
           foreign_key: "user_id",
           options: {}
         )
-        allow(klass).to receive(:reflect_on_all_associations).and_return([assoc])
+        allow(klass).to receive(:reflect_on_all_associations).and_return([ assoc ])
         klass
       end
 
       it "populates associations from reflections" do
-        allow(ActiveRecord::Base).to receive(:descendants).and_return([model_class])
+        allow(ActiveRecord::Base).to receive(:descendants).and_return([ model_class ])
         stub_const("Rails", double(
           application: double(
             config: double(paths: { "app/models" => [] }),

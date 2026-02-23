@@ -10,7 +10,7 @@ module RailsDbInspector
       status, headers, response = @app.call(env)
 
       # Only inject into HTML responses in development
-      return [status, headers, response] unless injectable?(status, headers, env)
+      return [ status, headers, response ] unless injectable?(status, headers, env)
 
       body = +""
       response.each { |part| body << part }
@@ -25,7 +25,7 @@ module RailsDbInspector
         headers["Content-Length"] = body.bytesize.to_s
       end
 
-      [status, headers, [body]]
+      [ status, headers, [ body ] ]
     end
 
     private

@@ -11,7 +11,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
   describe "#render_summary with index analysis sections" do
     it "renders index analysis when indexes are used" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Execution Time" => 1.0,
           "Planning Time" => 0.5,
           "Plan" => {
@@ -28,7 +28,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Shared Hit Blocks" => 10,
             "Shared Read Blocks" => 0
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -39,7 +39,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders warnings in index analysis" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Execution Time" => 50.0,
           "Planning Time" => 0.5,
           "Plan" => {
@@ -57,7 +57,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Shared Hit Blocks" => 100,
             "Shared Read Blocks" => 50
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -67,7 +67,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders performance hotspots" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Execution Time" => 100.0,
           "Planning Time" => 0.5,
           "Plan" => {
@@ -83,7 +83,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Shared Hit Blocks" => 50,
             "Shared Read Blocks" => 0
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -93,7 +93,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders buffer stats summary with Actual Rows" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Execution Time" => 1.0,
           "Planning Time" => 0.5,
           "Plan" => {
@@ -109,7 +109,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Shared Read Blocks" => 5,
             "Shared Written Blocks" => 1
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -119,7 +119,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders recommendations with different severities" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Execution Time" => 2000.0,
           "Planning Time" => 5000.0,
           "Plan" => {
@@ -137,7 +137,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Shared Hit Blocks" => 100,
             "Shared Read Blocks" => 500
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -147,7 +147,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders cache hit ratio" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Execution Time" => 1.0,
           "Planning Time" => 0.5,
           "Plan" => {
@@ -162,7 +162,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Shared Hit Blocks" => 90,
             "Shared Read Blocks" => 10
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -174,7 +174,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
   describe "#render_tree with detailed node types" do
     it "renders index scan nodes with index name" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Index Scan",
             "Index Name" => "idx_users_email",
@@ -185,7 +185,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Plan Width" => 32,
             "Index Cond" => "(email = 'test@example.com')"
           }
-        }],
+        } ],
         analyze: false
       }
 
@@ -197,7 +197,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders seq scan with filter" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -207,7 +207,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Plan Width" => 32,
             "Filter" => "(status = 'active')"
           }
-        }],
+        } ],
         analyze: false
       }
 
@@ -219,7 +219,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders analyze data with timing and row counts" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -232,7 +232,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Plan Width" => 32,
             "Actual Loops" => 1
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -243,7 +243,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders analyze data with large time (>100ms warning styling)" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -255,7 +255,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Actual Startup Time" => 0.1,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -266,7 +266,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders row estimate mismatch (10x+)" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -278,7 +278,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Actual Startup Time" => 0.1,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -289,7 +289,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders moderate row mismatch (2x-10x)" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -301,7 +301,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Actual Startup Time" => 0.1,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -312,7 +312,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders node details with buffers" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -328,7 +328,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Shared Written Blocks" => 1,
             "Actual Loops" => 3
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -340,7 +340,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders filter efficiency" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -354,7 +354,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Filter" => "(status = 'active')",
             "Rows Removed by Filter" => 900
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -364,7 +364,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders join details" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Hash Join",
             "Join Type" => "Inner",
@@ -388,18 +388,18 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
                 "Startup Cost" => 0.0,
                 "Plan Rows" => 500,
                 "Plan Width" => 32,
-                "Plans" => [{
+                "Plans" => [ {
                   "Node Type" => "Seq Scan",
                   "Relation Name" => "posts",
                   "Total Cost" => 100.0,
                   "Startup Cost" => 0.0,
                   "Plan Rows" => 500,
                   "Plan Width" => 32
-                }]
+                } ]
               }
             ]
           }
-        }],
+        } ],
         analyze: false
       }
 
@@ -411,10 +411,10 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders sort details" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Sort",
-            "Sort Key" => ["users.name"],
+            "Sort Key" => [ "users.name" ],
             "Sort Method" => "quicksort",
             "Sort Space Used" => 100,
             "Sort Space Type" => "Memory",
@@ -425,16 +425,16 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Actual Total Time" => 2.0,
             "Actual Startup Time" => 1.5,
             "Plan Width" => 32,
-            "Plans" => [{
+            "Plans" => [ {
               "Node Type" => "Seq Scan",
               "Relation Name" => "users",
               "Total Cost" => 30.0,
               "Startup Cost" => 0.0,
               "Plan Rows" => 500,
               "Plan Width" => 32
-            }]
+            } ]
           }
-        }],
+        } ],
         analyze: true
       }
 
@@ -446,7 +446,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders recheck condition" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Bitmap Heap Scan",
             "Relation Name" => "users",
@@ -455,16 +455,16 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Startup Cost" => 5.0,
             "Plan Rows" => 1,
             "Plan Width" => 32,
-            "Plans" => [{
+            "Plans" => [ {
               "Node Type" => "Bitmap Index Scan",
               "Index Name" => "idx_users_email",
               "Total Cost" => 5.0,
               "Startup Cost" => 0.0,
               "Plan Rows" => 1,
               "Plan Width" => 0
-            }]
+            } ]
           }
-        }],
+        } ],
         analyze: false
       }
 
@@ -474,7 +474,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders schema when not public" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -484,7 +484,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Plan Rows" => 10,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: false
       }
 
@@ -494,7 +494,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "does not append schema when it is public" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -504,7 +504,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Plan Rows" => 10,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: false
       }
 
@@ -514,7 +514,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
     it "renders plan rows when no actual rows (non-analyze)" do
       plan_data = {
-        plan: [{
+        plan: [ {
           "Plan" => {
             "Node Type" => "Seq Scan",
             "Relation Name" => "users",
@@ -523,7 +523,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
             "Plan Rows" => 42,
             "Plan Width" => 32
           }
-        }],
+        } ],
         analyze: false
       }
 
@@ -534,7 +534,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
   describe "detect_warnings" do
     def warnings_for(node, analyze: false)
-      renderer = build_renderer({ plan: [{ "Plan" => node }], analyze: analyze })
+      renderer = build_renderer({ plan: [ { "Plan" => node } ], analyze: analyze })
       renderer.send(:detect_warnings, node)
     end
 
@@ -604,7 +604,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
         "Relation Name" => "users",
         "Actual Total Time" => 50.0
       }
-      renderer = build_renderer({ plan: [{ "Plan" => plan_node }], analyze: true })
+      renderer = build_renderer({ plan: [ { "Plan" => plan_node } ], analyze: true })
       hotspots = renderer.send(:find_hotspots, plan_node)
       expect(hotspots).to include(a_string_matching(/Seq Scan on users/))
     end
@@ -613,20 +613,20 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
       plan_node = {
         "Node Type" => "Hash Join",
         "Actual Total Time" => 100.0,
-        "Plans" => [{
+        "Plans" => [ {
           "Node Type" => "Seq Scan",
           "Relation Name" => "users",
           "Actual Total Time" => 80.0
-        }]
+        } ]
       }
-      renderer = build_renderer({ plan: [{ "Plan" => plan_node }], analyze: true })
+      renderer = build_renderer({ plan: [ { "Plan" => plan_node } ], analyze: true })
       hotspots = renderer.send(:find_hotspots, plan_node)
       expect(hotspots.length).to eq 2
     end
 
     it "returns empty when not in analyze mode" do
       plan_node = { "Node Type" => "Seq Scan", "Actual Total Time" => 50.0 }
-      renderer = build_renderer({ plan: [{ "Plan" => plan_node }], analyze: false })
+      renderer = build_renderer({ plan: [ { "Plan" => plan_node } ], analyze: false })
       hotspots = renderer.send(:find_hotspots, plan_node)
       expect(hotspots).to be_empty
     end
@@ -640,7 +640,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
         "Plan Rows" => 50000,
         "Filter" => "(status = 'active')"
       }
-      renderer = build_renderer({ plan: [{ "Plan" => node }], analyze: false })
+      renderer = build_renderer({ plan: [ { "Plan" => node } ], analyze: false })
       analysis = renderer.send(:analyze_index_usage, node)
 
       expect(analysis[:total_scans]).to eq 1
@@ -657,7 +657,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
         "Plan Rows" => 2000,
         "Filter" => "(email = 'test')"
       }
-      renderer = build_renderer({ plan: [{ "Plan" => node }], analyze: false })
+      renderer = build_renderer({ plan: [ { "Plan" => node } ], analyze: false })
       analysis = renderer.send(:analyze_index_usage, node)
       expect(analysis[:warnings].any? { |w| w.include?("consider adding index") }).to be true
     end
@@ -669,7 +669,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
         "Relation Name" => "users",
         "Plan Rows" => 100
       }
-      renderer = build_renderer({ plan: [{ "Plan" => node }], analyze: false })
+      renderer = build_renderer({ plan: [ { "Plan" => node } ], analyze: false })
       analysis = renderer.send(:analyze_index_usage, node)
 
       expect(analysis[:index_scans]).to eq 1
@@ -684,7 +684,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
           { "Node Type" => "Seq Scan", "Relation Name" => "posts", "Plan Rows" => 100 }
         ]
       }
-      renderer = build_renderer({ plan: [{ "Plan" => node }], analyze: false })
+      renderer = build_renderer({ plan: [ { "Plan" => node } ], analyze: false })
       analysis = renderer.send(:analyze_index_usage, node)
       expect(analysis[:total_scans]).to eq 2
       expect(analysis[:index_scans]).to eq 1
@@ -693,7 +693,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
   describe "generate_recommendations" do
     def recs_for(root_plan, analyze: true)
-      plan_data = { plan: [root_plan], analyze: analyze }
+      plan_data = { plan: [ root_plan ], analyze: analyze }
       renderer = build_renderer(plan_data)
       index_analysis = renderer.send(:analyze_index_usage, root_plan["Plan"])
       buffer_stats = renderer.send(:collect_buffer_stats, root_plan["Plan"])
@@ -827,7 +827,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
 
   describe "walk_plan_for_recommendations" do
     def walk_recs(node, analyze: true)
-      plan_data = { plan: [{ "Plan" => node }], analyze: analyze }
+      plan_data = { plan: [ { "Plan" => node } ], analyze: analyze }
       renderer = build_renderer(plan_data)
       recs = []
       renderer.send(:walk_plan_for_recommendations, node, recs)
@@ -957,14 +957,14 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
         "Node Type" => "Hash Join",
         "Actual Rows" => 100,
         "Plan Rows" => 100,
-        "Plans" => [{
+        "Plans" => [ {
           "Node Type" => "Seq Scan",
           "Relation Name" => "orders",
           "Filter" => "(total > 100)",
           "Actual Rows" => 500,
           "Plan Rows" => 500,
           "Rows Removed by Filter" => 4500
-        }]
+        } ]
       })
       expect(recs.any? { |r| r[:title].include?("Sequential scan with filter") }).to be true
     end

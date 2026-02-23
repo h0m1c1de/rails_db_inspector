@@ -1,4 +1,4 @@
-require_relative 'plan_renderer'
+require_relative "plan_renderer"
 
 module RailsDbInspector
   module ApplicationHelper
@@ -9,7 +9,7 @@ module RailsDbInspector
 
     def render_query_type(query)
       sql = query.sql.downcase.strip
-      
+
       # Determine the primary operation
       operation = case sql
       when /^select\b/
@@ -28,7 +28,7 @@ module RailsDbInspector
 
       # Add complexity indicators for SELECT queries
       complexity_hints = []
-      
+
       if operation == "SELECT"
         complexity_hints << "JOIN" if sql.include?(" join ")
         complexity_hints << "SUBQUERY" if sql.include?("(select") || sql.include?("( select")
@@ -39,7 +39,7 @@ module RailsDbInspector
 
       # Render the operation with complexity hints
       result_html = "<span class=\"inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800\">#{operation}</span>"
-      
+
       complexity_hints.each do |hint|
         case hint
         when "JOIN"
@@ -58,21 +58,21 @@ module RailsDbInspector
 
     def group_queries_by_action(queries)
       return [] if queries.empty?
-      
+
       groups = []
       current_group = nil
-      
+
       queries.each do |query|
         controller_action = extract_controller_action_from_sql(query)
-        
+
         # Start a new group if:
         # 1. No current group
         # 2. Different controller/action
         # 3. Time gap of more than 10 seconds from the last query in the group
-        if current_group.nil? || 
+        if current_group.nil? ||
            current_group[:action] != controller_action ||
            time_gap_too_large?(query, current_group[:queries].last, 10.0)
-          
+
           current_group = {
             action: controller_action,
             queries: [],
@@ -81,10 +81,10 @@ module RailsDbInspector
           }
           groups << current_group
         end
-        
+
         current_group[:queries] << query
       end
-      
+
       groups
     end
 
@@ -113,7 +113,7 @@ module RailsDbInspector
 
         sample_query = entries.first[:query]
         total_duration = entries.sum { |e| e[:query].duration_ms }
-        
+
         # Try to extract the table name
         table = normalized_sql.match(/FROM\s+"?(\w+)"?/i)&.captures&.first || "unknown"
 
@@ -131,7 +131,7 @@ module RailsDbInspector
       # Sort by count descending (worst offenders first)
       n_plus_ones.sort_by { |n| -n[:count] }
     end
-    
+
     private
 
     def normalize_sql(sql)
@@ -148,38 +148,38 @@ module RailsDbInspector
       normalized.gsub!(/\s+/, " ")
       normalized.strip
     end
-    
+
     def extract_controller_action_from_sql(query)
       sql = query.sql.to_s
-      
+
       # Look for controller and action in SQL comments
       if match = sql.match(/\/\*.*?controller='([^']+)'.*?action='([^']+)'.*?\*\//)
         controller = match[1]
         action = match[2]
-        
+
         # Handle namespaced controllers properly
-        if controller.include?('/')
+        if controller.include?("/")
           # Convert api/users to Api::UsersController
-          controller_parts = controller.split('/')
-          namespaced_controller = controller_parts.map(&:camelize).join('::') + "Controller"
+          controller_parts = controller.split("/")
+          namespaced_controller = controller_parts.map(&:camelize).join("::") + "Controller"
         else
           namespaced_controller = "#{controller.camelize}Controller"
         end
-        
+
         return "#{namespaced_controller}##{action}"
       end
-      
+
       # Fallback to query name if no controller/action found
       query.name.to_s.presence || "Unknown Query"
     end
-    
+
     def determine_request_type_from_action(action_name)
       case action_name
       when /API::|Api::|\/api\//i
         :api
       when /Controller#/
         # Check if it looks like an API endpoint based on common patterns
-        if action_name.match(/(show|index|create|update|destroy)/) && 
+        if action_name.match(/(show|index|create|update|destroy)/) &&
            !action_name.match(/(new|edit)/)
           # Could be API if no render actions (new/edit are typically web-only)
           :web_or_api
@@ -211,16 +211,16 @@ module RailsDbInspector
         "💾"
       end
     end
-    
+
     def time_gap_too_large?(current_query, last_query, gap_seconds = 5.0)
       return false if last_query.nil?
-      
+
       current_time = parse_timestamp(current_query.timestamp)
       last_time = parse_timestamp(last_query.timestamp)
-      
+
       (current_time - last_time).abs > gap_seconds
     end
-    
+
     def parse_timestamp(timestamp)
       case timestamp
       when Time
@@ -236,10 +236,10 @@ module RailsDbInspector
 
     def format_group_time_range(group)
       return "" if group[:queries].empty?
-      
+
       start_time = parse_timestamp(group[:start_time])
       end_time = parse_timestamp(group[:queries].last.timestamp)
-      
+
       if (end_time - start_time) < 1.0
         start_time.strftime("%H:%M:%S")
       else
