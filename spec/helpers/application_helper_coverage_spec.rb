@@ -133,8 +133,9 @@ RSpec.describe RailsDbInspector::ApplicationHelper, "coverage" do
     end
 
     it "returns Time.now on unparseable values" do
+      allow(Time).to receive(:parse).and_raise(ArgumentError)
       before = Time.now
-      result = helper.parse_timestamp(Object.new)
+      result = helper.parse_timestamp("not-a-timestamp")
       after = Time.now
       expect(result).to be_between(before, after)
     end
