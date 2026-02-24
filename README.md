@@ -2,7 +2,7 @@
 
 A mountable Rails engine that gives you a built-in dashboard for **SQL query monitoring**, **N+1 detection**, **EXPLAIN / EXPLAIN ANALYZE plans**, and **interactive schema visualization** — no external services required.
 
-Supports **PostgreSQL** and **MySQL**.
+Supports **PostgreSQL**, **MySQL**, and **SQLite**.
 
 ![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.1-red)
 ![Rails](https://img.shields.io/badge/rails-%3E%3D%207.1-red)
@@ -18,7 +18,7 @@ Supports **PostgreSQL** and **MySQL**.
 - **Real-time SQL Query Capture** — every query your app executes is logged with SQL text, duration, bind parameters, and timestamps
 - **N+1 Query Detection** — automatically identifies repeated query patterns and highlights the worst offenders
 - **Query Grouping** — queries are grouped by controller action using Rails marginal annotations
-- **EXPLAIN Plans** — run `EXPLAIN` on any captured query to see the execution plan (PostgreSQL JSON format, MySQL tabular)
+- **EXPLAIN Plans** — run `EXPLAIN` on any captured query to see the execution plan (PostgreSQL JSON format, MySQL tabular, SQLite QUERY PLAN)
 - **EXPLAIN ANALYZE** — optionally run `EXPLAIN ANALYZE` to get real execution statistics, buffer usage, and timing (opt-in, SELECT only)
 - **Plan Analysis** — rich visual rendering of PostgreSQL plans including cost breakdown, row estimate accuracy, index usage analysis, performance hotspots, buffer statistics, and actionable recommendations
 - **Interactive Schema / ERD Visualization** — drag-and-drop entity relationship diagram with pan, zoom, search, column expansion, heat-map by row count, missing index warnings, polymorphic detection, and SVG export
@@ -185,9 +185,9 @@ The widget is automatically injected via Rack middleware and only appears in `de
 |------------|---------|-----------------|--------------|
 | PostgreSQL | ✅      | ✅               | ✅            |
 | MySQL      | ✅      | ✅               | ✅            |
-| SQLite     | ❌      | ❌               | ✅            |
+| SQLite     | ✅      | ✅               | ✅            |
 
-EXPLAIN uses `FORMAT JSON` for PostgreSQL and standard `EXPLAIN` for MySQL.
+EXPLAIN uses `FORMAT JSON` for PostgreSQL, standard `EXPLAIN` for MySQL, and `EXPLAIN QUERY PLAN` for SQLite.
 
 ---
 

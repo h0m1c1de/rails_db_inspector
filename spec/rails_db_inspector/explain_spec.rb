@@ -18,6 +18,13 @@ RSpec.describe RailsDbInspector::Explain do
       expect(explainer).to be_a(RailsDbInspector::Explain::MySql)
     end
 
+    it "returns Sqlite explainer for sqlite adapter" do
+      connection = double("connection", adapter_name: "SQLite")
+      explainer = described_class.for_connection(connection)
+
+      expect(explainer).to be_a(RailsDbInspector::Explain::Sqlite)
+    end
+
     it "raises UnsupportedAdapter for unknown adapters" do
       connection = double("connection", adapter_name: "Oracle")
 

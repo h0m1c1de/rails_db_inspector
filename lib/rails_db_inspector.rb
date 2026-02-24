@@ -8,6 +8,7 @@ require_relative "rails_db_inspector/sql_subscriber"
 require_relative "rails_db_inspector/explain"
 require_relative "rails_db_inspector/explain/postgres"
 require_relative "rails_db_inspector/explain/my_sql"
+require_relative "rails_db_inspector/explain/sqlite"
 require_relative "rails_db_inspector/schema_inspector"
 
 module RailsDbInspector
