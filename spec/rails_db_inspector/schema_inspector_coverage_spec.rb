@@ -186,4 +186,196 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
       expect(result).to eq []
     end
   end
+
+  describe "#suggest_polymorphic_composite_indexes edge cases" do
+    it "handles multiple polymorphic columns" do
+      polymorphics = [
+        { name: "commentable", type_column: "commentable_type", id_column: "commentable_id" },
+        { name: "taggable", type_column: "taggable_type", id_column: "taggable_id" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_polymorphic_composite_indexes, "comments", indexes, polymorphics)
+      expect(result.length).to eq 2
+    end
+
+    it "skips only the polymorphic that has a matching composite index" do
+      polymorphics = [
+        { name: "commentable", type_column: "commentable_type", id_column: "commentable_id" },
+        { name: "taggable", type_column: "taggable_type", id_column: "taggable_id" }
+      ]
+      indexes = [
+        { name: "idx", columns: [ "commentable_type", "commentable_id" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_polymorphic_composite_indexes, "comments", indexes, polymorphics)
+      expect(result.length).to eq 1
+      expect(result.first[:columns]).to eq [ "taggable_type", "taggable_id" ]
+    end
+  end
+
+  describe "#suggest_join_table_composite_indexes edge cases" do
+    it "returns empty when table has fewer than 2 _id columns" do
+      columns = [ { name: "id", type: "integer" }, { name: "user_id", type: "integer" } ]
+      result = inspector.send(:suggest_join_table_composite_indexes, "posts", columns, [], [])
+      expect(result).to be_empty
+    end
+
+    it "skips unique suggestion when unique composite already exists" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "tag_id", type: "integer" }
+      ]
+      indexes = [
+        { name: "idx_uniq", columns: [ "post_id", "tag_id" ], unique: true }
+      ]
+      result = inspector.send(:suggest_join_table_composite_indexes, "post_tags", columns, indexes, [])
+      expect(result).to be_empty
+    end
+
+    it "suggests for 3 FK column combinations" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "tag_id", type: "integer" },
+        { name: "user_id", type: "integer" }
+      ]
+      result = inspector.send(:suggest_join_table_composite_indexes, "post_tag_users", columns, [], [])
+      # 3 FK cols => C(3,2)=3 pairs, each with regular+unique = 6 suggestions
+      regular = result.select { |s| s[:reason] == :join_table }
+      expect(regular.length).to eq 3
+    end
+  end
+
+  describe "#suggest_query_driven_indexes edge cases" do
+    before do
+      RailsDbInspector::QueryStore.instance.clear!
+    end
+
+    it "ignores queries that don't reference the table" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM users WHERE name = 'test'",
+          name: "User Load",
+          binds: [],
+          duration_ms: 1.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      result = inspector.send(:suggest_query_driven_indexes, "posts", [])
+      expect(result).to be_empty
+    end
+
+    it "limits suggestions to 5" do
+      # Generate many distinct column pairs
+      10.times do |i|
+        3.times do
+          RailsDbInspector::QueryStore.instance.add(
+            sql: "SELECT * FROM posts WHERE col_a#{i} = 1 AND col_b#{i} = 2",
+            name: "Post Load",
+            binds: [],
+            duration_ms: 1.0,
+            connection_id: 1,
+            timestamp: Time.now
+          )
+        end
+      end
+
+      result = inspector.send(:suggest_query_driven_indexes, "posts", [])
+      expect(result.length).to be <= 5
+    end
+
+    it "extracts columns from table-qualified multi-table queries" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts JOIN users ON users.id = posts.user_id WHERE posts.status = 'active' AND posts.category_id = 1",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 1.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      result = inspector.send(:suggest_query_driven_indexes, "posts", [])
+      expect(result).not_to be_empty
+      cols = result.first[:columns]
+      expect(cols).to include("status")
+    end
+  end
+
+  describe "#extract_where_columns edge cases" do
+    it "returns empty for queries with no WHERE clause" do
+      result = inspector.send(:extract_where_columns, "SELECT * FROM posts", "posts")
+      expect(result).to be_empty
+    end
+
+    it "stops at GROUP BY" do
+      sql = "SELECT * FROM posts WHERE posts.status = 'active' GROUP BY posts.category_id"
+      result = inspector.send(:extract_where_columns, sql, "posts")
+      expect(result).to include("status")
+    end
+
+    it "handles quoted table names" do
+      sql = 'SELECT * FROM "posts" WHERE "posts"."user_id" = 1'
+      result = inspector.send(:extract_where_columns, sql, "posts")
+      expect(result).to include("user_id")
+    end
+  end
+
+  describe "#extract_order_columns edge cases" do
+    it "returns empty for queries with no ORDER BY" do
+      result = inspector.send(:extract_order_columns, "SELECT * FROM posts", "posts")
+      expect(result).to be_empty
+    end
+
+    it "stops at LIMIT" do
+      sql = "SELECT * FROM posts ORDER BY posts.created_at LIMIT 10"
+      result = inspector.send(:extract_order_columns, sql, "posts")
+      expect(result).to include("created_at")
+    end
+
+    it "excludes ASC/DESC keywords" do
+      sql = "SELECT * FROM posts ORDER BY created_at DESC"
+      result = inspector.send(:extract_order_columns, sql, "posts")
+      expect(result).to include("created_at")
+      expect(result).not_to include("DESC")
+    end
+  end
+
+  describe "#looks_like_join_table? edge cases" do
+    it "allows timestamps alongside FK columns" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "tag_id", type: "integer" },
+        { name: "created_at", type: "datetime" },
+        { name: "updated_at", type: "datetime" }
+      ]
+      expect(inspector.send(:looks_like_join_table?, "post_tags", columns)).to be true
+    end
+  end
+
+  describe "#detect_index_suggestions deduplication" do
+    it "deduplicates suggestions with same columns" do
+      polymorphics = [
+        { name: "commentable", type_column: "commentable_type", id_column: "commentable_id" }
+      ]
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "commentable_type", type: "varchar" },
+        { name: "commentable_id", type: "integer" }
+      ]
+      indexes = []
+      associations = []
+
+      result = inspector.send(:detect_index_suggestions, "comments", columns, indexes, polymorphics, associations)
+      # Check no duplicate column sets
+      column_sets = result.map { |s| s[:columns].sort }
+      expect(column_sets).to eq column_sets.uniq
+    end
+  end
 end

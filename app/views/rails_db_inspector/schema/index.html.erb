@@ -231,12 +231,13 @@
   }
 
   // Compute global health stats
-  var healthStats = { tables: tableNames.length, totalCols: 0, totalIndexes: 0, missingIndexes: 0, polymorphics: 0, noTimestamps: 0, noPK: 0, totalRows: 0, noTimestampTables: [], noPKTables: [] };
+  var healthStats = { tables: tableNames.length, totalCols: 0, totalIndexes: 0, missingIndexes: 0, indexSuggestions: 0, polymorphics: 0, noTimestamps: 0, noPK: 0, totalRows: 0, noTimestampTables: [], noPKTables: [] };
   tableNames.forEach(function(name) {
     var info = schema[name];
     healthStats.totalCols += (info.columns || []).length;
     healthStats.totalIndexes += (info.indexes || []).length;
     healthStats.missingIndexes += (info.missing_indexes || []).length;
+    healthStats.indexSuggestions += (info.index_suggestions || []).length;
     healthStats.polymorphics += (info.polymorphic_columns || []).length;
     if (info.row_count != null) healthStats.totalRows += info.row_count;
     if (!info.primary_key) { healthStats.noPK++; healthStats.noPKTables.push(name); }
@@ -259,6 +260,9 @@
       html += '<div class="health-stat warn"><span class="stat-icon">&#x26A0;</span> Missing indexes: <span class="stat-val">' + healthStats.missingIndexes + '</span></div>';
     } else {
       html += '<div class="health-stat ok"><span class="stat-icon">&#x2705;</span> Missing indexes: <span class="stat-val">0</span></div>';
+    }
+    if (healthStats.indexSuggestions > 0) {
+      html += '<div class="health-stat warn"><span class="stat-icon">&#x1F4A1;</span> Index suggestions: <span class="stat-val">' + healthStats.indexSuggestions + '</span></div>';
     }
     if (healthStats.noTimestamps > 0) {
       html += '<div class="health-stat warn" style="cursor:pointer;" title="' + healthStats.noTimestampTables.join(', ') + '" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'"><span class="stat-icon">&#x23F0;</span> No timestamps: <span class="stat-val">' + healthStats.noTimestamps + '</span> <span style="font-size:9px;color:#b45309;">&#x25BC;</span></div>';
@@ -293,9 +297,13 @@
     var html = '<div class="node-header ' + heatClass(info.row_count) + '"><span>' + name + '</span>';
     var missingCount = (info.missing_indexes || []).length;
     var polyCount = (info.polymorphic_columns || []).length;
+    var suggestCount = (info.index_suggestions || []).length;
     if (missingCount > 0) {
       var missingTip = (info.missing_indexes || []).map(function(c) { return c; }).join(', ');
       html += '<span class="node-warning" title="Missing indexes: ' + missingTip + '">&#x26A0;</span>';
+    }
+    if (suggestCount > 0) {
+      html += '<span class="node-warning" style="background:#fef3c7;color:#854d0e;" title="' + suggestCount + ' index suggestion(s)">&#x1F4A1;</span>';
     }
     if (polyCount > 0) {
       html += '<span class="node-poly-badge" title="' + polyCount + ' polymorphic">P</span>';
@@ -373,6 +381,8 @@
       var badges = '<span class="badge">' + cnt + '</span>';
       var mi = (schema[name].missing_indexes || []).length;
       if (mi > 0) badges = '<span style="color:#d97706;font-size:10px;margin-right:4px;" title="' + mi + ' missing index(es)">&#x26A0;</span>' + badges;
+      var si = (schema[name].index_suggestions || []).length;
+      if (si > 0) badges = '<span style="color:#854d0e;font-size:10px;margin-right:4px;" title="' + si + ' index suggestion(s)">&#x1F4A1;</span>' + badges;
       var pc = (schema[name].polymorphic_columns || []).length;
       if (pc > 0) badges = '<span style="color:#7c3aed;font-size:10px;font-weight:700;margin-right:4px;" title="' + pc + ' polymorphic">P</span>' + badges;
       div.innerHTML = '<span>' + name + '</span><span style="display:flex;align-items:center;">' + badges + '</span>';
@@ -637,6 +647,35 @@
       html += '<div class="detail-section" style="background:#f5f3ff;"><h4 style="color:#6d28d9;">&#x1F48E; Polymorphic (' + polyCols.length + ')</h4>';
       polyCols.forEach(function(p) {
         html += '<div style="font-size:12px;padding:2px 0;color:#6d28d9;font-family:ui-monospace,monospace;">&#x2022; <strong>' + p.name + '</strong> (<span style="color:#7c3aed;">' + p.type_column + '</span> + <span style="color:#7c3aed;">' + p.id_column + '</span>)</div>';
+      });
+      html += '</div>';
+    }
+
+    // Index Suggestions (polymorphic composites, join table composites, query-driven)
+    var suggestions = info.index_suggestions || [];
+    if (suggestions.length > 0) {
+      var reasonIcons = { polymorphic: '&#x1F48E;', join_table: '&#x1F517;', join_table_unique: '&#x1F512;', query_pattern: '&#x1F50D;' };
+      var reasonLabels = { polymorphic: 'Polymorphic', join_table: 'Join Table', join_table_unique: 'Join Table (Unique)', query_pattern: 'Query Pattern' };
+      var reasonBg = { polymorphic: '#f5f3ff', join_table: '#eff6ff', join_table_unique: '#eff6ff', query_pattern: '#f0fdf4' };
+      var reasonColor = { polymorphic: '#6d28d9', join_table: '#1d4ed8', join_table_unique: '#1d4ed8', query_pattern: '#166534' };
+      html += '<div class="detail-section" style="background:#fefce8;"><h4 style="color:#854d0e;">&#x1F4A1; Index Suggestions (' + suggestions.length + ')</h4>';
+      suggestions.forEach(function(s) {
+        var icon = reasonIcons[s.reason] || '&#x2022;';
+        var label = reasonLabels[s.reason] || s.reason;
+        var bg = reasonBg[s.reason] || '#f9fafb';
+        var color = reasonColor[s.reason] || '#374151';
+        html += '<div style="font-size:12px;padding:6px 0;border-bottom:1px solid #fef3c7;">';
+        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">';
+        html += '<span style="font-size:12px;">' + icon + '</span>';
+        html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:' + bg + ';color:' + color + ';font-weight:600;">' + label + '</span>';
+        html += '</div>';
+        html += '<div style="font-family:ui-monospace,monospace;font-size:11px;color:#374151;font-weight:600;margin-bottom:2px;">(' + s.columns.join(', ') + ')</div>';
+        html += '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">' + s.message + '</div>';
+        html += '<div style="margin-top:3px;font-size:10px;color:#78350f;font-weight:600;">SQL</div>';
+        html += '<div style="position:relative;"><code style="display:block;font-size:10px;background:#fef3c7;padding:4px 28px 4px 6px;border-radius:4px;color:#78350f;word-break:break-all;cursor:pointer;" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent.trim());this.nextElementSibling.style.opacity=1;setTimeout(function(){this.style.opacity=0}.bind(this.nextElementSibling),1200)">' + s.sql + '</code><span style="position:absolute;right:6px;top:3px;font-size:9px;color:#059669;opacity:0;transition:opacity 0.2s;">Copied!</span></div>';
+        html += '<div style="margin-top:3px;font-size:10px;color:#78350f;font-weight:600;">Rails migration</div>';
+        html += '<div style="position:relative;"><code style="display:block;font-size:10px;background:#fef3c7;padding:4px 28px 4px 6px;border-radius:4px;color:#78350f;word-break:break-all;cursor:pointer;" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent.trim());this.nextElementSibling.style.opacity=1;setTimeout(function(){this.style.opacity=0}.bind(this.nextElementSibling),1200)">' + s.migration + '</code><span style="position:absolute;right:6px;top:3px;font-size:9px;color:#059669;opacity:0;transition:opacity 0.2s;">Copied!</span></div>';
+        html += '</div>';
       });
       html += '</div>';
     }
