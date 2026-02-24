@@ -471,7 +471,61 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
       result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
       expect(result).to be_empty
     end
-  end
+    it "skips when row count is too low" do
+      allow(connection).to receive(:quote_table_name).and_return('"users"')
+      allow(connection).to receive(:select_value).and_return(50)
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "active", type: "boolean" }
+      ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
+
+    it "skips when true_count is nil" do
+      allow(connection).to receive(:quote_table_name).and_return('"users"')
+      allow(connection).to receive(:quote_column_name).and_return('"active"')
+      allow(connection).to receive(:select_value).and_return(200, nil)
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "active", type: "boolean" }
+      ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
+
+    it "skips when total is zero" do
+      allow(connection).to receive(:quote_table_name).and_return('"users"')
+      allow(connection).to receive(:quote_column_name).and_return('"active"')
+      allow(connection).to receive(:select_value).and_return(200, 0, 0)
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "active", type: "boolean" }
+      ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
+
+    it "picks false as minority value when false_count < true_count" do
+      allow(connection).to receive(:quote_table_name).and_return('"users"')
+      allow(connection).to receive(:quote_column_name).and_return('"active"')
+      allow(connection).to receive(:select_value).and_return(200, 180, 20)
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "active", type: "boolean" }
+      ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result.length).to eq 1
+      expect(result.first[:sql]).to include("false")
+    end  end
 
   describe "#detect_redundant_indexes edge cases" do
     it "does not flag unique indexes as redundant" do
@@ -496,6 +550,19 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
       result = inspector.send(:suggest_soft_delete_partial_index, "posts", columns, [])
       expect(result.length).to eq 1
       expect(result.first[:columns]).to eq [ "deleted_at" ]
+    end
+
+    it "skips when soft-delete column is already indexed" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "deleted_at", type: "datetime" }
+      ]
+      indexes = [
+        { name: "index_posts_on_deleted_at", columns: [ "deleted_at" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_soft_delete_partial_index, "posts", columns, indexes)
+      expect(result).to be_empty
     end
   end
 
