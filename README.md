@@ -7,6 +7,9 @@ Supports **PostgreSQL** and **MySQL**.
 ![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.1-red)
 ![Rails](https://img.shields.io/badge/rails-%3E%3D%207.1-red)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Gem Version](https://badge.fury.io/rb/rails_db_inspector.svg)](https://rubygems.org/gems/rails_db_inspector)
+[![Gem Downloads](https://img.shields.io/gem/dt/rails_db_inspector)](https://rubygems.org/gems/rails_db_inspector)
+[![CI](https://github.com/h0m1c1de/rails_db_inspector/actions/workflows/ci.yml/badge.svg)](https://github.com/h0m1c1de/rails_db_inspector/actions/workflows/ci.yml)
 
 ---
 
