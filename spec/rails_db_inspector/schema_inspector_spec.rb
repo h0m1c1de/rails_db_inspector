@@ -580,4 +580,500 @@ RSpec.describe RailsDbInspector::SchemaInspector do
       expect(inspector.send(:looks_like_join_table?, "profiles", columns)).to be false
     end
   end
+
+  describe "#suggest_sti_index" do
+    it "suggests index on type column when not indexed" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "type", type: "varchar(255)" },
+        { name: "name", type: "varchar(255)" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_sti_index, "vehicles", columns, indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:reason]).to eq :sti
+      expect(result.first[:columns]).to eq [ "type" ]
+    end
+
+    it "skips when type column already indexed" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "type", type: "varchar(255)" }
+      ]
+      indexes = [
+        { name: "index_vehicles_on_type", columns: [ "type" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_sti_index, "vehicles", columns, indexes)
+      expect(result).to be_empty
+    end
+
+    it "returns empty when no type column exists" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "name", type: "varchar(255)" }
+      ]
+
+      result = inspector.send(:suggest_sti_index, "users", columns, [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_uniqueness_indexes" do
+    before do
+      stub_const("Rails", double(
+        application: double(
+          config: double(paths: { "app/models" => [] }),
+          eager_load!: nil
+        )
+      ))
+    end
+
+    it "suggests unique index for validates_uniqueness_of" do
+      model = Class.new(ActiveRecord::Base)
+      allow(model).to receive(:table_name).and_return("users")
+      allow(model).to receive(:abstract_class?).and_return(false)
+
+      validator = double("validator",
+        attributes: [ :email ],
+        options: {}
+      )
+      allow(validator).to receive(:is_a?).with(anything).and_return(false)
+      allow(validator).to receive(:is_a?).with(ActiveRecord::Validations::UniquenessValidator).and_return(true)
+      allow(model).to receive(:validators).and_return([ validator ])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ model ])
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "email", type: "varchar(255)" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_uniqueness_indexes, "users", columns, indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:reason]).to eq :uniqueness
+      expect(result.first[:columns]).to eq [ "email" ]
+    end
+
+    it "suggests scoped unique composite index" do
+      model = Class.new(ActiveRecord::Base)
+      allow(model).to receive(:table_name).and_return("slugs")
+      allow(model).to receive(:abstract_class?).and_return(false)
+
+      validator = double("validator",
+        attributes: [ :slug ],
+        options: { scope: :sluggable_type }
+      )
+      allow(validator).to receive(:is_a?).with(anything).and_return(false)
+      allow(validator).to receive(:is_a?).with(ActiveRecord::Validations::UniquenessValidator).and_return(true)
+      allow(model).to receive(:validators).and_return([ validator ])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ model ])
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "slug", type: "varchar" },
+        { name: "sluggable_type", type: "varchar" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_uniqueness_indexes, "slugs", columns, indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:columns]).to include("slug", "sluggable_type")
+    end
+
+    it "skips when unique index already exists" do
+      model = Class.new(ActiveRecord::Base)
+      allow(model).to receive(:table_name).and_return("users")
+      allow(model).to receive(:abstract_class?).and_return(false)
+
+      validator = double("validator",
+        attributes: [ :email ],
+        options: {}
+      )
+      allow(validator).to receive(:is_a?).with(anything).and_return(false)
+      allow(validator).to receive(:is_a?).with(ActiveRecord::Validations::UniquenessValidator).and_return(true)
+      allow(model).to receive(:validators).and_return([ validator ])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ model ])
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "email", type: "varchar(255)" }
+      ]
+      indexes = [
+        { name: "index_users_on_email", columns: [ "email" ], unique: true }
+      ]
+
+      result = inspector.send(:suggest_uniqueness_indexes, "users", columns, indexes)
+      expect(result).to be_empty
+    end
+
+    it "returns empty when no model found" do
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([])
+
+      result = inspector.send(:suggest_uniqueness_indexes, "unknown", [], [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_covering_indexes" do
+    before do
+      RailsDbInspector::QueryStore.instance.clear!
+    end
+
+    it "suggests covering index for WHERE + ORDER BY pattern" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts WHERE posts.status = 'active' ORDER BY posts.created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      result = inspector.send(:suggest_covering_indexes, "posts", [])
+      expect(result).not_to be_empty
+      expect(result.first[:reason]).to eq :covering
+    end
+
+    it "returns empty when no queries exist" do
+      result = inspector.send(:suggest_covering_indexes, "posts", [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_partial_indexes_for_booleans" do
+    it "suggests partial index for skewed boolean column" do
+      allow(connection).to receive(:quote_table_name).and_return('"users"')
+      allow(connection).to receive(:quote_column_name).and_return('"active"')
+      allow(connection).to receive(:select_value).and_return(200, 950, 50)
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "active", type: "boolean" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:reason]).to eq :partial_boolean
+    end
+
+    it "skips when data is not skewed" do
+      allow(connection).to receive(:quote_table_name).and_return('"users"')
+      allow(connection).to receive(:quote_column_name).and_return('"active"')
+      allow(connection).to receive(:select_value).and_return(1000, 500, 500)
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "active", type: "boolean" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, indexes)
+      expect(result).to be_empty
+    end
+
+    it "skips when column already indexed" do
+      allow(connection).to receive(:quote_table_name).and_return('"users"')
+      allow(connection).to receive(:quote_column_name).and_return('"active"')
+      allow(connection).to receive(:select_value).and_return(200, 950, 50)
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "active", type: "boolean" }
+      ]
+      indexes = [
+        { name: "index_users_on_active", columns: [ "active" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, indexes)
+      expect(result).to be_empty
+    end
+
+    it "returns empty for tables with no boolean columns" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "name", type: "varchar" }
+      ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#detect_redundant_indexes" do
+    it "detects single-column index redundant with composite" do
+      indexes = [
+        { name: "index_posts_on_user_id", columns: [ "user_id" ], unique: false },
+        { name: "index_posts_on_user_id_and_created_at", columns: [ "user_id", "created_at" ], unique: false }
+      ]
+
+      result = inspector.send(:detect_redundant_indexes, "posts", indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:reason]).to eq :redundant
+      expect(result.first[:redundant_index]).to eq "index_posts_on_user_id"
+      expect(result.first[:covered_by]).to eq "index_posts_on_user_id_and_created_at"
+    end
+
+    it "does not flag non-prefix indexes as redundant" do
+      indexes = [
+        { name: "index_posts_on_user_id", columns: [ "user_id" ], unique: false },
+        { name: "index_posts_on_status_and_user_id", columns: [ "status", "user_id" ], unique: false }
+      ]
+
+      result = inspector.send(:detect_redundant_indexes, "posts", indexes)
+      expect(result).to be_empty
+    end
+
+    it "returns empty with fewer than 2 indexes" do
+      indexes = [
+        { name: "index_posts_on_user_id", columns: [ "user_id" ], unique: false }
+      ]
+
+      result = inspector.send(:detect_redundant_indexes, "posts", indexes)
+      expect(result).to be_empty
+    end
+
+    it "detects two-column index redundant with three-column index" do
+      indexes = [
+        { name: "idx_a_b", columns: [ "a", "b" ], unique: false },
+        { name: "idx_a_b_c", columns: [ "a", "b", "c" ], unique: false }
+      ]
+
+      result = inspector.send(:detect_redundant_indexes, "t", indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:redundant_index]).to eq "idx_a_b"
+    end
+  end
+
+  describe "#suggest_soft_delete_partial_index" do
+    it "suggests partial index for deleted_at column" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "name", type: "varchar" },
+        { name: "deleted_at", type: "datetime" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_soft_delete_partial_index, "posts", columns, indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:reason]).to eq :soft_delete
+      expect(result.first[:columns]).to eq [ "deleted_at" ]
+      expect(result.first[:sql]).to include("WHERE deleted_at IS NULL")
+    end
+
+    it "suggests partial index for discarded_at column" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "discarded_at", type: "datetime" }
+      ]
+
+      result = inspector.send(:suggest_soft_delete_partial_index, "posts", columns, [])
+      expect(result.length).to eq 1
+      expect(result.first[:sql]).to include("WHERE discarded_at IS NULL")
+    end
+
+    it "suggests partial index for archived_at column" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "archived_at", type: "datetime" }
+      ]
+
+      result = inspector.send(:suggest_soft_delete_partial_index, "posts", columns, [])
+      expect(result.length).to eq 1
+      expect(result.first[:sql]).to include("WHERE archived_at IS NULL")
+    end
+
+    it "skips when already indexed" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "deleted_at", type: "datetime" }
+      ]
+      indexes = [
+        { name: "index_posts_active", columns: [ "deleted_at" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_soft_delete_partial_index, "posts", columns, indexes)
+      expect(result).to be_empty
+    end
+
+    it "returns empty when no soft-delete column" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "name", type: "varchar" }
+      ]
+
+      result = inspector.send(:suggest_soft_delete_partial_index, "posts", columns, [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_timestamp_ordering_indexes" do
+    before do
+      RailsDbInspector::QueryStore.instance.clear!
+    end
+
+    it "suggests index on created_at used in ORDER BY" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts ORDER BY posts.created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "created_at", type: "datetime" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_timestamp_ordering_indexes, "posts", columns, indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:reason]).to eq :timestamp_order
+      expect(result.first[:columns]).to eq [ "created_at" ]
+    end
+
+    it "skips when already indexed" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts ORDER BY posts.created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "created_at", type: "datetime" }
+      ]
+      indexes = [
+        { name: "index_posts_on_created_at", columns: [ "created_at" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_timestamp_ordering_indexes, "posts", columns, indexes)
+      expect(result).to be_empty
+    end
+
+    it "returns empty when no queries exist" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "created_at", type: "datetime" }
+      ]
+
+      result = inspector.send(:suggest_timestamp_ordering_indexes, "posts", columns, [])
+      expect(result).to be_empty
+    end
+
+    it "returns empty when no timestamp columns" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "name", type: "varchar" }
+      ]
+
+      RailsDbInspector::QueryStore.instance.add(
+        sql: "SELECT * FROM posts ORDER BY posts.name",
+        name: "Post Load",
+        binds: [],
+        duration_ms: 5.0,
+        connection_id: 1,
+        timestamp: Time.now
+      )
+
+      result = inspector.send(:suggest_timestamp_ordering_indexes, "posts", columns, [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_counter_cache_indexes" do
+    before do
+      RailsDbInspector::QueryStore.instance.clear!
+    end
+
+    it "suggests index on _count column used in ORDER BY" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM users ORDER BY users.posts_count DESC",
+          name: "User Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "posts_count", type: "integer" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_counter_cache_indexes, "users", columns, indexes)
+      expect(result.length).to eq 1
+      expect(result.first[:reason]).to eq :counter_cache
+      expect(result.first[:columns]).to eq [ "posts_count" ]
+    end
+
+    it "skips when already indexed" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM users ORDER BY users.posts_count DESC",
+          name: "User Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "posts_count", type: "integer" }
+      ]
+      indexes = [
+        { name: "index_users_on_posts_count", columns: [ "posts_count" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_counter_cache_indexes, "users", columns, indexes)
+      expect(result).to be_empty
+    end
+
+    it "returns empty when no queries exist" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "posts_count", type: "integer" }
+      ]
+
+      result = inspector.send(:suggest_counter_cache_indexes, "users", columns, [])
+      expect(result).to be_empty
+    end
+
+    it "returns empty when no _count columns" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "name", type: "varchar" }
+      ]
+
+      RailsDbInspector::QueryStore.instance.add(
+        sql: "SELECT * FROM users ORDER BY users.name",
+        name: "User Load",
+        binds: [],
+        duration_ms: 5.0,
+        connection_id: 1,
+        timestamp: Time.now
+      )
+
+      result = inspector.send(:suggest_counter_cache_indexes, "users", columns, [])
+      expect(result).to be_empty
+    end
+  end
 end

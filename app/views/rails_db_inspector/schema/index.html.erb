@@ -654,10 +654,10 @@
     // Index Suggestions (polymorphic composites, join table composites, query-driven)
     var suggestions = info.index_suggestions || [];
     if (suggestions.length > 0) {
-      var reasonIcons = { polymorphic: '&#x1F48E;', join_table: '&#x1F517;', join_table_unique: '&#x1F512;', query_pattern: '&#x1F50D;' };
-      var reasonLabels = { polymorphic: 'Polymorphic', join_table: 'Join Table', join_table_unique: 'Join Table (Unique)', query_pattern: 'Query Pattern' };
-      var reasonBg = { polymorphic: '#f5f3ff', join_table: '#eff6ff', join_table_unique: '#eff6ff', query_pattern: '#f0fdf4' };
-      var reasonColor = { polymorphic: '#6d28d9', join_table: '#1d4ed8', join_table_unique: '#1d4ed8', query_pattern: '#166534' };
+      var reasonIcons = { polymorphic: '&#x1F48E;', join_table: '&#x1F517;', join_table_unique: '&#x1F512;', query_pattern: '&#x1F50D;', sti: '&#x1F3F7;', uniqueness: '&#x1F6A8;', covering: '&#x1F4D1;', partial_boolean: '&#x2696;', redundant: '&#x267B;', soft_delete: '&#x1F5D1;', timestamp_order: '&#x1F552;', counter_cache: '&#x1F4CA;' };
+      var reasonLabels = { polymorphic: 'Polymorphic', join_table: 'Join Table', join_table_unique: 'Join Table (Unique)', query_pattern: 'Query Pattern', sti: 'STI', uniqueness: 'Uniqueness', covering: 'Covering', partial_boolean: 'Partial (Boolean)', redundant: 'Redundant', soft_delete: 'Soft Delete', timestamp_order: 'Timestamp Order', counter_cache: 'Counter Cache' };
+      var reasonBg = { polymorphic: '#f5f3ff', join_table: '#eff6ff', join_table_unique: '#eff6ff', query_pattern: '#f0fdf4', sti: '#fef3c7', uniqueness: '#fee2e2', covering: '#f0fdf4', partial_boolean: '#fef9c3', redundant: '#fce7f3', soft_delete: '#fef2f2', timestamp_order: '#ecfdf5', counter_cache: '#eff6ff' };
+      var reasonColor = { polymorphic: '#6d28d9', join_table: '#1d4ed8', join_table_unique: '#1d4ed8', query_pattern: '#166534', sti: '#92400e', uniqueness: '#991b1b', covering: '#166534', partial_boolean: '#854d0e', redundant: '#9d174d', soft_delete: '#b91c1c', timestamp_order: '#065f46', counter_cache: '#1e40af' };
       html += '<div class="detail-section" style="background:#fefce8;"><h4 style="color:#854d0e;">&#x1F4A1; Index Suggestions (' + suggestions.length + ')</h4>';
       suggestions.forEach(function(s) {
         var icon = reasonIcons[s.reason] || '&#x2022;';

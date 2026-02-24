@@ -378,4 +378,174 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
       expect(column_sets).to eq column_sets.uniq
     end
   end
+
+  describe "#safe_bool_count" do
+    it "returns count on success" do
+      allow(connection).to receive(:quote_table_name).and_return('"t"')
+      allow(connection).to receive(:quote_column_name).and_return('"c"')
+      allow(connection).to receive(:select_value).and_return(42)
+
+      expect(inspector.send(:safe_bool_count, "t", "c", true)).to eq 42
+    end
+
+    it "returns nil on error" do
+      allow(connection).to receive(:quote_table_name).and_raise(StandardError)
+
+      expect(inspector.send(:safe_bool_count, "t", "c", true)).to be_nil
+    end
+  end
+
+  describe "#suggest_sti_index edge cases" do
+    it "skips when type column is part of composite index" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "type", type: "varchar(255)" }
+      ]
+      indexes = [
+        { name: "index_on_type_and_status", columns: [ "type", "status" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_sti_index, "vehicles", columns, indexes)
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_uniqueness_indexes edge cases" do
+    it "handles error when loading descendants" do
+      allow(ActiveRecord::Base).to receive(:descendants).and_raise(StandardError)
+
+      result = inspector.send(:suggest_uniqueness_indexes, "users", [], [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_covering_indexes edge cases" do
+    before { RailsDbInspector::QueryStore.instance.clear! }
+
+    it "skips queries below frequency threshold" do
+      1.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts WHERE posts.status = 'active' ORDER BY posts.created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      result = inspector.send(:suggest_covering_indexes, "posts", [])
+      expect(result).to be_empty
+    end
+
+    it "skips when covering index already exists" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts WHERE posts.status = 'active' ORDER BY posts.created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      indexes = [
+        { name: "index_posts_on_status_created_at", columns: [ "status", "created_at" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_covering_indexes, "posts", indexes)
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_partial_indexes_for_booleans edge cases" do
+    it "handles database error gracefully" do
+      allow(connection).to receive(:quote_table_name).and_raise(StandardError)
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "active", type: "boolean" }
+      ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#detect_redundant_indexes edge cases" do
+    it "does not flag unique indexes as redundant" do
+      indexes = [
+        { name: "index_email_unique", columns: [ "email" ], unique: true },
+        { name: "index_email_and_name", columns: [ "email", "name" ], unique: false }
+      ]
+
+      result = inspector.send(:detect_redundant_indexes, "users", indexes)
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_soft_delete_partial_index edge cases" do
+    it "prefers deleted_at over discarded_at when both exist" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "deleted_at", type: "datetime" },
+        { name: "discarded_at", type: "datetime" }
+      ]
+
+      result = inspector.send(:suggest_soft_delete_partial_index, "posts", columns, [])
+      expect(result.length).to eq 1
+      expect(result.first[:columns]).to eq [ "deleted_at" ]
+    end
+  end
+
+  describe "#suggest_timestamp_ordering_indexes edge cases" do
+    before { RailsDbInspector::QueryStore.instance.clear! }
+
+    it "requires at least 2 occurrences" do
+      1.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts ORDER BY posts.created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "created_at", type: "datetime" }
+      ]
+
+      result = inspector.send(:suggest_timestamp_ordering_indexes, "posts", columns, [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_counter_cache_indexes edge cases" do
+    before { RailsDbInspector::QueryStore.instance.clear! }
+
+    it "requires at least 2 occurrences" do
+      1.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM users ORDER BY users.posts_count DESC",
+          name: "User Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "posts_count", type: "integer" }
+      ]
+
+      result = inspector.send(:suggest_counter_cache_indexes, "users", columns, [])
+      expect(result).to be_empty
+    end
+  end
 end

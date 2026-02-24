@@ -190,7 +190,15 @@ module RailsDbInspector
       suggestions.concat(suggest_polymorphic_composite_indexes(table, indexes, polymorphic_columns))
       suggestions.concat(suggest_join_table_composite_indexes(table, columns, indexes, associations))
       suggestions.concat(suggest_query_driven_indexes(table, indexes))
-      suggestions.uniq { |s| s[:columns].sort }
+      suggestions.concat(suggest_sti_index(table, columns, indexes))
+      suggestions.concat(suggest_uniqueness_indexes(table, columns, indexes))
+      suggestions.concat(suggest_covering_indexes(table, indexes))
+      suggestions.concat(suggest_partial_indexes_for_booleans(table, columns, indexes))
+      suggestions.concat(detect_redundant_indexes(table, indexes))
+      suggestions.concat(suggest_soft_delete_partial_index(table, columns, indexes))
+      suggestions.concat(suggest_timestamp_ordering_indexes(table, columns, indexes))
+      suggestions.concat(suggest_counter_cache_indexes(table, columns, indexes))
+      suggestions.uniq { |s| [ s[:reason], s[:columns]&.sort ] }
     end
 
     # Strategy 1: Composite indexes for polymorphic associations [type, id]
@@ -373,6 +381,7 @@ module RailsDbInspector
         order_section.scan(/\b(\w+)\b/) do |match|
           col = match[0]
           next if sql_keyword?(col)
+          next if col == table
           columns << col
         end
       end
@@ -400,6 +409,329 @@ module RailsDbInspector
       # Join tables typically have 2+ FK columns and few other columns
       non_meta = col_names - %w[id created_at updated_at] - id_cols
       id_cols.length >= 2 && non_meta.length <= 2
+    end
+
+    # Strategy 4: STI (Single Table Inheritance) — index on `type` column
+    def suggest_sti_index(table, columns, indexes)
+      type_col = columns.find { |c| c[:name] == "type" }
+      return [] unless type_col
+
+      indexed = indexes.any? { |idx| idx[:columns].include?("type") }
+      return [] if indexed
+
+      [ {
+        columns: [ "type" ],
+        reason: :sti,
+        message: "Index recommended on 'type' column for Single Table Inheritance. " \
+                 "Rails always filters by type in STI queries.",
+        sql: "CREATE INDEX index_#{table}_on_type ON #{table} (type);",
+        migration: "add_index :#{table}, :type"
+      } ]
+    end
+
+    # Strategy 5: Uniqueness validations without a matching unique index
+    def suggest_uniqueness_indexes(table, columns, indexes)
+      model = find_model_for_table(table)
+      return [] unless model
+
+      suggestions = []
+
+      unique_validators = model.validators.select { |v| v.is_a?(ActiveRecord::Validations::UniquenessValidator) }
+      unique_validators.each do |validator|
+        attrs = validator.attributes.map(&:to_s)
+        scope = Array(validator.options[:scope]).map(&:to_s)
+        cols = (scope + attrs).uniq
+
+        # Check if a unique index already covers these columns
+        has_unique_index = indexes.any? do |idx|
+          idx[:unique] && (cols - idx[:columns].map(&:to_s)).empty?
+        end
+        next if has_unique_index
+
+        col_names = columns.map { |c| c[:name] }
+        next unless cols.all? { |c| col_names.include?(c) }
+
+        if cols.length == 1
+          suggestions << {
+            columns: cols,
+            reason: :uniqueness,
+            message: "Unique index recommended for validates_uniqueness_of :#{attrs.first}. " \
+                     "Without a database-level unique index, there is a race condition.",
+            sql: "CREATE UNIQUE INDEX index_#{table}_on_#{cols.first} ON #{table} (#{cols.first});",
+            migration: "add_index :#{table}, :#{cols.first}, unique: true"
+          }
+        else
+          suggestions << {
+            columns: cols,
+            reason: :uniqueness,
+            message: "Unique composite index recommended for validates_uniqueness_of :#{attrs.first} " \
+                     "scoped to [:#{scope.join(', :')}]. Without it, there is a race condition.",
+            sql: "CREATE UNIQUE INDEX index_#{table}_on_#{cols.join('_and_')} ON #{table} (#{cols.join(', ')});",
+            migration: "add_index :#{table}, [:#{cols.join(', :')}], unique: true"
+          }
+        end
+      end
+
+      suggestions
+    rescue StandardError
+      []
+    end
+
+    # Strategy 6: Covering indexes (WHERE col + ORDER BY col)
+    def suggest_covering_indexes(table, indexes)
+      queries = RailsDbInspector::QueryStore.instance.all
+      return [] if queries.empty?
+
+      existing_composites = indexes
+        .select { |idx| idx[:columns].length >= 2 }
+        .map { |idx| idx[:columns].map(&:to_s) }
+
+      covering_candidates = Hash.new(0)
+
+      queries.each do |query|
+        sql = query.sql.to_s
+        next unless references_table?(sql, table)
+
+        where_cols = extract_where_columns(sql, table)
+        order_cols = extract_order_columns(sql, table)
+
+        next if where_cols.empty? || order_cols.empty?
+
+        # Covering index: WHERE columns first, then ORDER BY columns
+        covering = (where_cols + order_cols).uniq
+        next if covering.length < 2
+        next if covering.any? { |c| c.include?("*") || c.include?("(") }
+
+        covering_candidates[covering] += 1
+      end
+
+      suggestions = []
+
+      covering_candidates
+        .select { |_cols, count| count >= 2 }
+        .sort_by { |_cols, count| -count }
+        .first(3)
+        .each do |cols, count|
+          # Skip if already covered by an existing composite
+          next if existing_composites.any? { |ec| ec.first(cols.length) == cols }
+
+          suggestions << {
+            columns: cols,
+            reason: :covering,
+            message: "Covering index suggested based on #{count} queries with WHERE + ORDER BY. " \
+                     "Column order matters: filter columns first, then sort columns.",
+            sql: "CREATE INDEX index_#{table}_on_#{cols.join('_and_')} ON #{table} (#{cols.join(', ')});",
+            migration: "add_index :#{table}, [:#{cols.join(', :')}]"
+          }
+        end
+
+      suggestions
+    end
+
+    # Strategy 7: Partial indexes for boolean columns with skewed data
+    def suggest_partial_indexes_for_booleans(table, columns, indexes)
+      bool_columns = columns.select { |c| c[:type].to_s.match?(/bool/i) }
+      return [] if bool_columns.empty?
+
+      row_count = safe_row_count(table)
+      return [] unless row_count && row_count > 100
+
+      suggestions = []
+
+      bool_columns.each do |col|
+        # Skip if there's already an index involving this column
+        already_indexed = indexes.any? { |idx| idx[:columns].include?(col[:name]) }
+        next if already_indexed
+
+        # Check distribution if possible
+        true_count = safe_bool_count(table, col[:name], true)
+        false_count = safe_bool_count(table, col[:name], false)
+        next unless true_count && false_count
+
+        total = true_count + false_count
+        next if total == 0
+
+        minority_value = true_count <= false_count ? true : false
+        minority_count = [ true_count, false_count ].min
+        minority_pct = (minority_count.to_f / total * 100).round(1)
+
+        # Only suggest if data is skewed (minority < 30%)
+        next unless minority_pct < 30
+
+        suggestions << {
+          columns: [ col[:name] ],
+          reason: :partial_boolean,
+          message: "Partial index suggested on '#{col[:name]}' (#{minority_pct}% are #{minority_value}). " \
+                   "A partial index on the minority value is more efficient than a full index.",
+          sql: "CREATE INDEX index_#{table}_on_#{col[:name]}_#{minority_value} ON #{table} (#{col[:name]}) " \
+               "WHERE #{col[:name]} = #{minority_value};",
+          migration: "add_index :#{table}, :#{col[:name]}, where: \"#{col[:name]} = #{minority_value}\""
+        }
+      end
+
+      suggestions
+    end
+
+    # Strategy 8: Detect redundant/duplicate indexes
+    def detect_redundant_indexes(table, indexes)
+      return [] if indexes.length < 2
+
+      suggestions = []
+
+      indexes.each do |idx|
+        cols = idx[:columns].map(&:to_s)
+        next if cols.empty?
+        next if idx[:unique] # unique indexes serve a different purpose
+
+        # Check if another index has this one as a prefix
+        indexes.each do |other|
+          next if other[:name] == idx[:name]
+
+          other_cols = other[:columns].map(&:to_s)
+          next if other_cols.length <= cols.length
+
+          # idx is redundant if its columns are a prefix of other's columns
+          if other_cols.first(cols.length) == cols
+            suggestions << {
+              columns: cols,
+              reason: :redundant,
+              redundant_index: idx[:name],
+              covered_by: other[:name],
+              message: "Index '#{idx[:name]}' (#{cols.join(', ')}) is redundant — " \
+                       "it's a prefix of '#{other[:name]}' (#{other_cols.join(', ')}). " \
+                       "Consider removing it to improve write performance.",
+              sql: "DROP INDEX #{idx[:name]};",
+              migration: "remove_index :#{table}, name: :#{idx[:name]}"
+            }
+            break # Only report once per redundant index
+          end
+        end
+      end
+
+      suggestions
+    end
+
+    # Strategy 9: Partial index for soft-delete columns (deleted_at, discarded_at, archived_at)
+    SOFT_DELETE_COLUMNS = %w[deleted_at discarded_at archived_at].freeze
+
+    def suggest_soft_delete_partial_index(table, columns, indexes)
+      col_names = columns.map { |c| c[:name] }
+      soft_delete_col = SOFT_DELETE_COLUMNS.find { |sd| col_names.include?(sd) }
+      return [] unless soft_delete_col
+
+      # Check if there's already a partial index or any index on this column
+      already_indexed = indexes.any? { |idx| idx[:columns].include?(soft_delete_col) }
+      return [] if already_indexed
+
+      [
+        {
+          columns: [ soft_delete_col ],
+          reason: :soft_delete,
+          message: "Partial index suggested on '#{table}' for active records. " \
+                   "Most queries filter out soft-deleted rows — a partial index on " \
+                   "WHERE #{soft_delete_col} IS NULL is much smaller and faster.",
+          sql: "CREATE INDEX index_#{table}_active ON #{table} (id) WHERE #{soft_delete_col} IS NULL;",
+          migration: "add_index :#{table}, :id, where: \"#{soft_delete_col} IS NULL\", name: :index_#{table}_active"
+        }
+      ]
+    end
+
+    # Strategy 10: Timestamp ordering indexes (created_at / updated_at used in ORDER BY)
+    def suggest_timestamp_ordering_indexes(table, columns, indexes)
+      queries = RailsDbInspector::QueryStore.instance.all
+      return [] if queries.empty?
+
+      timestamp_cols = columns
+        .select { |c| %w[created_at updated_at].include?(c[:name]) }
+        .map { |c| c[:name] }
+      return [] if timestamp_cols.empty?
+
+      # Count how often each timestamp column appears in ORDER BY for this table
+      order_usage = Hash.new(0)
+
+      queries.each do |query|
+        sql = query.sql.to_s
+        next unless references_table?(sql, table)
+
+        order_cols = extract_order_columns(sql, table)
+        order_cols.each do |col|
+          order_usage[col] += 1 if timestamp_cols.include?(col)
+        end
+      end
+
+      suggestions = []
+
+      order_usage
+        .select { |_col, count| count >= 2 }
+        .each do |col, count|
+          already_indexed = indexes.any? { |idx| idx[:columns].first == col }
+          next if already_indexed
+
+          suggestions << {
+            columns: [ col ],
+            reason: :timestamp_order,
+            message: "Index suggested on '#{col}' — used in ORDER BY across #{count} queries. " \
+                     "Pagination and feed-style queries benefit significantly from this index.",
+            sql: "CREATE INDEX index_#{table}_on_#{col} ON #{table} (#{col});",
+            migration: "add_index :#{table}, :#{col}"
+          }
+        end
+
+      suggestions
+    end
+
+    # Strategy 11: Counter cache columns used in ORDER BY
+    def suggest_counter_cache_indexes(table, columns, indexes)
+      queries = RailsDbInspector::QueryStore.instance.all
+      return [] if queries.empty?
+
+      count_cols = columns
+        .select { |c| c[:name].end_with?("_count") }
+        .map { |c| c[:name] }
+      return [] if count_cols.empty?
+
+      order_usage = Hash.new(0)
+
+      queries.each do |query|
+        sql = query.sql.to_s
+        next unless references_table?(sql, table)
+
+        order_cols = extract_order_columns(sql, table)
+        order_cols.each do |col|
+          order_usage[col] += 1 if count_cols.include?(col)
+        end
+      end
+
+      suggestions = []
+
+      order_usage
+        .select { |_col, count| count >= 2 }
+        .each do |col, count|
+          already_indexed = indexes.any? { |idx| idx[:columns].include?(col) }
+          next if already_indexed
+
+          suggestions << {
+            columns: [ col ],
+            reason: :counter_cache,
+            message: "Index suggested on '#{col}' — used for sorting in #{count} queries. " \
+                     "Counter cache columns used in leaderboard/ranking queries benefit from an index.",
+            sql: "CREATE INDEX index_#{table}_on_#{col} ON #{table} (#{col});",
+            migration: "add_index :#{table}, :#{col}"
+          }
+        end
+
+      suggestions
+    end
+
+    def safe_bool_count(table, column, value)
+      quoted_table = connection.quote_table_name(table)
+      quoted_col = connection.quote_column_name(column)
+      result = connection.select_value(
+        "SELECT COUNT(*) FROM #{quoted_table} WHERE #{quoted_col} = #{value}"
+      )
+      result.to_i
+    rescue StandardError
+      nil
     end
 
     def find_model_for_table(table)
