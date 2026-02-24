@@ -625,7 +625,7 @@ module RailsDbInspector
 
       [
         {
-          columns: [soft_delete_col],
+          columns: [ soft_delete_col ],
           reason: :soft_delete,
           message: "Partial index suggested on '#{table}' for active records. " \
                    "Most queries filter out soft-deleted rows — a partial index on " \
@@ -668,7 +668,7 @@ module RailsDbInspector
           next if already_indexed
 
           suggestions << {
-            columns: [col],
+            columns: [ col ],
             reason: :timestamp_order,
             message: "Index suggested on '#{col}' — used in ORDER BY across #{count} queries. " \
                      "Pagination and feed-style queries benefit significantly from this index.",
@@ -711,7 +711,7 @@ module RailsDbInspector
           next if already_indexed
 
           suggestions << {
-            columns: [col],
+            columns: [ col ],
             reason: :counter_cache,
             message: "Index suggested on '#{col}' — used for sorting in #{count} queries. " \
                      "Counter cache columns used in leaderboard/ranking queries benefit from an index.",
