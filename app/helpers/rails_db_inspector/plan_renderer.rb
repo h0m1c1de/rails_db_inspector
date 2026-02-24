@@ -471,10 +471,10 @@ module RailsDbInspector
           if node["Actual Rows"] && node["Plan Rows"] && node["Plan Rows"] > 0
             ratio = (node["Actual Rows"].to_f / node["Plan Rows"]).round(2)
             accuracy = if ratio == 1.0 then "exact match"
-                       elsif ratio > 0.5 && ratio < 2.0 then "good (within 2x)"
-                       elsif ratio > 0.1 && ratio < 10 then "off (#{ratio}x)"
-                       else "poor (#{ratio}x) — consider ANALYZE on this table"
-                       end
+            elsif ratio > 0.5 && ratio < 2.0 then "good (within 2x)"
+            elsif ratio > 0.1 && ratio < 10 then "off (#{ratio}x)"
+            else "poor (#{ratio}x) — consider ANALYZE on this table"
+            end
             details << [ "Estimate Accuracy", accuracy, "How close the planner's cardinality estimate was to reality. If poor, run ANALYZE to update table statistics." ]
           end
 

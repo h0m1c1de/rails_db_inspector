@@ -132,7 +132,7 @@ RSpec.describe RailsDbInspector::Explain::Sqlite do
       expect(connection).to receive(:select_value).with(/COUNT.*users/).once.and_return(200)
 
       stats = explainer.send(:collect_table_stats, plan)
-      expect(stats.keys).to eq(["users"])
+      expect(stats.keys).to eq([ "users" ])
     end
   end
 end
