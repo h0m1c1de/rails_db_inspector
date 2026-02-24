@@ -82,9 +82,9 @@
   /* Health summary bar */
   #health-bar { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; background: #fafbfc; }
   #health-bar .health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  #health-bar .health-stat { font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 4px; }
+  #health-bar .health-stat { font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
   #health-bar .health-stat .stat-icon { font-size: 12px; flex-shrink: 0; }
-  #health-bar .health-stat .stat-val { font-weight: 700; color: #111827; }
+  #health-bar .health-stat .stat-val { font-weight: 700; color: #111827; overflow: hidden; text-overflow: ellipsis; }
   #health-bar .health-stat.warn .stat-val { color: #d97706; }
   #health-bar .health-stat.danger .stat-val { color: #dc2626; }
   #health-bar .health-stat.ok .stat-val { color: #059669; }
@@ -302,7 +302,8 @@
       html += '<div class="health-stat"><span class="stat-icon">&#x1F4BE;</span> DB size: <span class="stat-val">' + formatBytes(totalDbSize) + '</span></div>';
       html += '<div class="health-stat"><span class="stat-icon">&#x1F4C0;</span> Data / Index: <span class="stat-val">' + formatBytes(totalDataSize) + ' / ' + formatBytes(totalIndexSize) + '</span></div>';
       if (largestTable) {
-        html += '<div class="health-stat warn" style="cursor:pointer;" onclick="event.preventDefault();window._erd.select(\'' + largestTable + '\');window._erd.centerOn(\'' + largestTable + '\');"><span class="stat-icon">&#x1F3CB;</span> Largest: <span class="stat-val">' + largestTable + ' (' + formatBytes(largestTableSize) + ')</span></div>';
+        var displayName = largestTable.length > 20 ? largestTable.substring(0, 20) + '…' : largestTable;
+        html += '<div class="health-stat warn" style="cursor:pointer;grid-column:1/-1;" title="' + largestTable + ' (' + formatBytes(largestTableSize) + ')" onclick="event.preventDefault();window._erd.select(\'' + largestTable + '\');window._erd.centerOn(\'' + largestTable + '\');"><span class="stat-icon">&#x1F3CB;</span> Largest: <span class="stat-val">' + displayName + ' (' + formatBytes(largestTableSize) + ')</span></div>';
       }
     }
     if (healthStats.missingIndexes > 0) {
