@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-02-24
+
+### Fixed
+
+- Schema health bar: long table names in "Largest" stat no longer overflow into the ERD canvas
+  - Table names over 20 characters are truncated with ellipsis; full name shown on hover
+  - "Largest" stat now spans its own row in the health grid
+
 ## [0.6.0] - 2026-02-24
 
 ### Added
