@@ -13,6 +13,8 @@ module RailsDbInspector
         RailsDbInspector::Explain::Postgres.new(connection)
       when /mysql/
         RailsDbInspector::Explain::MySql.new(connection)
+      when /sqlite/
+        RailsDbInspector::Explain::Sqlite.new(connection)
       else
         raise UnsupportedAdapter, "Unsupported adapter: #{connection.adapter_name}"
       end
