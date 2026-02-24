@@ -46,7 +46,7 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
         renderer = described_class.new(plan_data)
         html = renderer.render_summary
 
-        expect(html).to include("Execution Summary")
+        expect(html).to include("Performance Metrics")
         expect(html).to include("10.5")
       end
     end
@@ -330,6 +330,113 @@ RSpec.describe RailsDbInspector::ApplicationHelper::PostgresPlanRenderer do
       html = renderer.render_summary
       # Should contain some recommendation content
       expect(html).to be_a(String)
+    end
+  end
+
+  describe "#cardinality_accuracy" do
+    it "returns nil when estimates match exactly" do
+      plan_data = {
+        plan: [ {
+          "Plan" => {
+            "Node Type" => "Seq Scan",
+            "Plan Rows" => 100,
+            "Actual Rows" => 100,
+            "Total Cost" => 10.0,
+            "Startup Cost" => 0.0,
+            "Plan Width" => 32
+          }
+        } ],
+        analyze: true
+      }
+
+      renderer = described_class.new(plan_data)
+      result = renderer.send(:cardinality_accuracy, plan_data[:plan].first["Plan"])
+      expect(result).to be_nil
+    end
+
+    it "returns worst ratio for overestimates" do
+      plan_data = {
+        plan: [ {
+          "Plan" => {
+            "Node Type" => "Seq Scan",
+            "Relation Name" => "users",
+            "Plan Rows" => 100,
+            "Actual Rows" => 1000,
+            "Total Cost" => 10.0,
+            "Startup Cost" => 0.0,
+            "Plan Width" => 32
+          }
+        } ],
+        analyze: true
+      }
+
+      renderer = described_class.new(plan_data)
+      result = renderer.send(:cardinality_accuracy, plan_data[:plan].first["Plan"])
+      expect(result[:worst_ratio]).to eq(10.0)
+      expect(result[:worst_table]).to eq("users")
+    end
+
+    it "normalizes underestimates to ratio >= 1" do
+      plan_data = {
+        plan: [ {
+          "Plan" => {
+            "Node Type" => "Seq Scan",
+            "Relation Name" => "posts",
+            "Plan Rows" => 1000,
+            "Actual Rows" => 100,
+            "Total Cost" => 10.0,
+            "Startup Cost" => 0.0,
+            "Plan Width" => 32
+          }
+        } ],
+        analyze: true
+      }
+
+      renderer = described_class.new(plan_data)
+      result = renderer.send(:cardinality_accuracy, plan_data[:plan].first["Plan"])
+      expect(result[:worst_ratio]).to eq(10.0)
+      expect(result[:worst_table]).to eq("posts")
+    end
+
+    it "finds worst accuracy across nested nodes" do
+      plan_data = {
+        plan: [ {
+          "Plan" => {
+            "Node Type" => "Hash Join",
+            "Plan Rows" => 100,
+            "Actual Rows" => 120,
+            "Total Cost" => 100.0,
+            "Startup Cost" => 0.0,
+            "Plan Width" => 64,
+            "Plans" => [
+              {
+                "Node Type" => "Seq Scan",
+                "Relation Name" => "users",
+                "Plan Rows" => 10,
+                "Actual Rows" => 500,
+                "Total Cost" => 10.0,
+                "Startup Cost" => 0.0,
+                "Plan Width" => 32
+              },
+              {
+                "Node Type" => "Index Scan",
+                "Relation Name" => "posts",
+                "Plan Rows" => 100,
+                "Actual Rows" => 100,
+                "Total Cost" => 5.0,
+                "Startup Cost" => 0.0,
+                "Plan Width" => 32
+              }
+            ]
+          }
+        } ],
+        analyze: true
+      }
+
+      renderer = described_class.new(plan_data)
+      result = renderer.send(:cardinality_accuracy, plan_data[:plan].first["Plan"])
+      expect(result[:worst_ratio]).to eq(50.0)
+      expect(result[:worst_table]).to eq("users")
     end
   end
 end

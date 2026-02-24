@@ -35,6 +35,7 @@
             <nav class="flex items-center space-x-3 ml-6">
               <%= link_to "Queries", queries_path, class: "text-sm font-medium #{'text-blue-600' if controller_name == 'queries'} #{'text-gray-500 hover:text-gray-700' unless controller_name == 'queries'} transition-colors" %>
               <%= link_to "Schema", schema_index_path, class: "text-sm font-medium #{'text-blue-600' if controller_name == 'schema'} #{'text-gray-500 hover:text-gray-700' unless controller_name == 'schema'} transition-colors" %>
+              <%= link_to "Console", console_index_path, class: "text-sm font-medium #{'text-blue-600' if controller_name == 'console'} #{'text-gray-500 hover:text-gray-700' unless controller_name == 'console'} transition-colors" %>
             </nav>
           </div>
           <div class="flex items-center space-x-4">

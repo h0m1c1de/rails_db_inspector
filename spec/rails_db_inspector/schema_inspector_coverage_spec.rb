@@ -614,5 +614,342 @@ RSpec.describe RailsDbInspector::SchemaInspector, "coverage" do
       result = inspector.send(:suggest_counter_cache_indexes, "users", columns, [])
       expect(result).to be_empty
     end
+
+    it "suggests index when counter cache column used in ORDER BY 2+ times" do
+      2.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM users ORDER BY users.posts_count DESC",
+          name: "User Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "posts_count", type: "integer" }
+      ]
+
+      result = inspector.send(:suggest_counter_cache_indexes, "users", columns, [])
+      expect(result).not_to be_empty
+      expect(result.first[:reason]).to eq(:counter_cache)
+    end
+
+    it "skips counter cache column already indexed" do
+      2.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM users ORDER BY users.posts_count DESC",
+          name: "User Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "posts_count", type: "integer" }
+      ]
+      indexes = [ { name: "idx_posts_count", columns: [ "posts_count" ], unique: false } ]
+
+      result = inspector.send(:suggest_counter_cache_indexes, "users", columns, indexes)
+      expect(result).to be_empty
+    end
+
+    it "skips non-counter columns that don't reference the table" do
+      2.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM other_table ORDER BY other_table.posts_count DESC",
+          name: "Other Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "posts_count", type: "integer" }
+      ]
+
+      result = inspector.send(:suggest_counter_cache_indexes, "users", columns, [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_timestamp_ordering_indexes additional coverage" do
+    before { RailsDbInspector::QueryStore.instance.clear! }
+
+    it "suggests index when timestamp column used in ORDER BY 2+ times" do
+      2.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts ORDER BY posts.created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "created_at", type: "datetime" }
+      ]
+
+      result = inspector.send(:suggest_timestamp_ordering_indexes, "posts", columns, [])
+      expect(result).not_to be_empty
+      expect(result.first[:reason]).to eq(:timestamp_order)
+    end
+
+    it "skips timestamp column already indexed" do
+      2.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts ORDER BY posts.created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "created_at", type: "datetime" }
+      ]
+      indexes = [ { name: "idx_created", columns: [ "created_at" ], unique: false } ]
+
+      result = inspector.send(:suggest_timestamp_ordering_indexes, "posts", columns, indexes)
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#detect_index_suggestions deduplication" do
+    before do
+      RailsDbInspector::QueryStore.instance.clear!
+      stub_const("Rails", double(
+        application: double(
+          config: double(paths: { "app/models" => [] }),
+          eager_load!: nil
+        )
+      ))
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([])
+    end
+
+    it "deduplicates suggestions with same reason and columns" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "name", type: "varchar" }
+      ]
+      result = inspector.send(:detect_index_suggestions, "users", columns, [], [], [])
+      # Just verify it returns without error and no duplicates
+      seen = result.map { |s| [ s[:reason], s[:columns]&.sort ] }
+      expect(seen.uniq.length).to eq(seen.length)
+    end
+  end
+
+  describe "#suggest_join_table_composite_indexes — not a join table" do
+    it "returns empty when table is not a join table" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "user_id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "content", type: "text" },
+        { name: "title", type: "varchar" },
+        { name: "body", type: "text" }
+      ]
+      result = inspector.send(:suggest_join_table_composite_indexes, "reviews", columns, [], [])
+      expect(result).to be_empty
+    end
+
+    it "suppresses unique index when one already exists" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "user_id", type: "integer" },
+        { name: "role_id", type: "integer" }
+      ]
+      indexes = [
+        { name: "idx_unique", columns: [ "user_id", "role_id" ], unique: true }
+      ]
+      associations = [ { through: "user_roles" } ]
+
+      result = inspector.send(:suggest_join_table_composite_indexes, "user_roles", columns, indexes, associations)
+      unique_suggestions = result.select { |s| s[:reason] == :join_table_unique }
+      expect(unique_suggestions).to be_empty
+    end
+  end
+
+  describe "#suggest_query_driven_indexes — bad parse skipping" do
+    before { RailsDbInspector::QueryStore.instance.clear! }
+
+    it "skips columns with * or ( in them" do
+      2.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT COUNT(*) FROM users WHERE users.status = 'active' AND users.role = 'admin'",
+          name: "User Count",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      result = inspector.send(:suggest_query_driven_indexes, "users", [])
+      # Verify suggestions don't include columns with * or (
+      result.each do |s|
+        s[:columns].each do |c|
+          expect(c).not_to include("*")
+          expect(c).not_to include("(")
+        end
+      end
+    end
+  end
+
+  describe "#extract_where_columns — additional branches" do
+    it "skips SQL keywords in simple WHERE columns" do
+      columns = inspector.send(:extract_where_columns, "SELECT * FROM users WHERE AND = 1", "users")
+      expect(columns).not_to include("AND")
+    end
+
+    it "skips numeric literals in simple WHERE columns" do
+      columns = inspector.send(:extract_where_columns, "SELECT * FROM users WHERE 123 = 1", "users")
+      expect(columns).not_to include("123")
+    end
+
+    it "uses simple column extraction for single-table queries" do
+      columns = inspector.send(:extract_where_columns, "SELECT * FROM users WHERE status = 'active'", "users")
+      expect(columns).to include("status")
+    end
+
+    it "does not use simple extraction for multi-table queries" do
+      columns = inspector.send(:extract_where_columns,
+        "SELECT * FROM users JOIN posts ON users.id = posts.user_id WHERE users.status = 'active'",
+        "users"
+      )
+      expect(columns).to include("status")
+    end
+  end
+
+  describe "#suggest_covering_indexes — additional branches" do
+    before { RailsDbInspector::QueryStore.instance.clear! }
+
+    it "skips covering candidates with * or ( in columns" do
+      2.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM users WHERE users.status = 'active' ORDER BY users.name",
+          name: "User Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      result = inspector.send(:suggest_covering_indexes, "users", [])
+      result.each do |s|
+        s[:columns].each do |c|
+          expect(c).not_to include("*")
+          expect(c).not_to include("(")
+        end
+      end
+    end
+
+    it "skips candidates with fewer than 2 columns" do
+      2.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM users WHERE users.status = 'active' ORDER BY users.status",
+          name: "User Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      result = inspector.send(:suggest_covering_indexes, "users", [])
+      # Only single column used in both WHERE and ORDER BY — might be filtered out
+      expect(result).to be_a(Array)
+    end
+  end
+
+  describe "#suggest_uniqueness_indexes — column validation" do
+    before do
+      stub_const("Rails", double(
+        application: double(
+          config: double(paths: { "app/models" => [] }),
+          eager_load!: nil
+        )
+      ))
+    end
+
+    it "skips when validator columns not present in table" do
+      model = Class.new(ActiveRecord::Base)
+      allow(model).to receive(:table_name).and_return("users")
+      allow(model).to receive(:abstract_class?).and_return(false)
+
+      validator = double("validator",
+        attributes: [ :email ],
+        options: {}
+      )
+      allow(validator).to receive(:is_a?).with(ActiveRecord::Validations::UniquenessValidator).and_return(true)
+      allow(model).to receive(:validators).and_return([ validator ])
+      allow(ActiveRecord::Base).to receive(:descendants).and_return([ model ])
+
+      columns = [ { name: "id", type: "integer" }, { name: "name", type: "varchar" } ]
+
+      # email column not in table columns list
+      result = inspector.send(:suggest_uniqueness_indexes, "users", columns, [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_partial_indexes_for_booleans — distribution checks" do
+    it "skips when boolean data is not skewed (minority >= 30%)" do
+      allow(connection).to receive(:quote_table_name) { |t| "\"#{t}\"" }
+      allow(connection).to receive(:quote_column_name) { |c| "\"#{c}\"" }
+      allow(connection).to receive(:select_value).and_return(100, 50, 50) # total, true, false
+
+      columns = [ { name: "active", type: "boolean" } ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
+
+    it "skips when total is 0" do
+      allow(connection).to receive(:quote_table_name) { |t| "\"#{t}\"" }
+      allow(connection).to receive(:quote_column_name) { |c| "\"#{c}\"" }
+      allow(connection).to receive(:select_value).and_return(100, 0, 0) # total, true, false
+
+      columns = [ { name: "active", type: "boolean" } ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
+
+    it "skips when row count returns nil" do
+      allow(connection).to receive(:quote_table_name) { |t| "\"#{t}\"" }
+      allow(connection).to receive(:select_value).and_return(nil)
+
+      columns = [ { name: "active", type: "boolean" } ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
+
+    it "skips when bool count returns nil" do
+      allow(connection).to receive(:quote_table_name) { |t| "\"#{t}\"" }
+      allow(connection).to receive(:quote_column_name) { |c| "\"#{c}\"" }
+      allow(connection).to receive(:select_value).and_return(500, nil, nil)
+
+      columns = [ { name: "active", type: "boolean" } ]
+
+      result = inspector.send(:suggest_partial_indexes_for_booleans, "users", columns, [])
+      expect(result).to be_empty
+    end
   end
 end

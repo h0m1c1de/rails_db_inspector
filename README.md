@@ -22,6 +22,7 @@ Supports **PostgreSQL**, **MySQL**, and **SQLite**.
 - **EXPLAIN ANALYZE** — optionally run `EXPLAIN ANALYZE` to get real execution statistics, buffer usage, and timing (opt-in, SELECT only)
 - **Plan Analysis** — rich visual rendering of PostgreSQL plans including cost breakdown, row estimate accuracy, index usage analysis, performance hotspots, buffer statistics, and actionable recommendations
 - **Interactive Schema / ERD Visualization** — drag-and-drop entity relationship diagram with pan, zoom, search, column expansion, heat-map by row count, missing index warnings, polymorphic detection, and SVG export
+- **SQL Console** — interactive query editor with syntax-aware snippets, query history, table browser, EXPLAIN support, and read-only safety by default
 - **Dev Widget** — floating button injected into your app's pages in development for quick access to the dashboard
 - **Zero Dependencies** — no JavaScript build step, no external CSS frameworks, everything is self-contained
 
@@ -84,6 +85,11 @@ RailsDbInspector.configure do |config|
   # Default: false
   config.allow_explain_analyze = true
 
+  # Allow write queries (INSERT, UPDATE, DELETE) in the SQL Console.
+  # Destructive DDL (DROP, TRUNCATE, ALTER, CREATE, GRANT, REVOKE) is always blocked.
+  # Default: false
+  config.allow_console_writes = false
+
   # Show the floating dev widget on your app's pages in development.
   # The widget provides quick links to the query monitor and schema viewer.
   # Default: true
@@ -98,6 +104,7 @@ end
 | `enabled`               | Boolean | `true`   | Master switch — disables SQL subscription and widget when `false`           |
 | `max_queries`           | Integer | `2000`   | Max queries stored in memory (FIFO eviction)                                |
 | `allow_explain_analyze` | Boolean | `false`  | Permit EXPLAIN ANALYZE (executes the query — SELECT only)                   |
+| `allow_console_writes`  | Boolean | `false`  | Allow write queries (`INSERT`, `UPDATE`, `DELETE`) in the SQL Console       |
 | `show_widget`           | Boolean | `true`   | Inject floating widget into HTML pages in development                       |
 
 ---
@@ -168,6 +175,27 @@ Navigate to the **Schema** page to see an interactive entity relationship diagra
 - **Health summary** — table count, column count, index count, total rows, missing indexes, tables without timestamps, tables without primary keys, polymorphic columns
 - **Export SVG** — download the diagram as an SVG file
 
+### SQL Console
+
+Navigate to the **Console** page for an interactive SQL editor:
+
+- **Write and run** raw SQL queries against your development database
+- **Adapter-aware snippets** — pre-built queries organized by category (Overview, Explore, Performance, Schema) that adapt to your database adapter
+- **Table browser** — click any table in the sidebar to insert a `SELECT * FROM <table> LIMIT 20` query
+- **Query history** — the last 50 queries are kept in-session with duration and status
+- **EXPLAIN** — run an EXPLAIN plan on any query directly from the editor
+- **Keyboard shortcuts** — `⌘/Ctrl + Enter` to run, `⌘/Ctrl + E` to explain
+
+#### Safety
+
+The console is **read-only by default** — only `SELECT`, `EXPLAIN`, `ANALYZE`, `PRAGMA`, `SHOW`, `DESCRIBE`, and `WITH` statements are permitted. Enable write access with:
+
+```ruby
+config.allow_console_writes = true
+```
+
+Destructive DDL (`DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `GRANT`, `REVOKE`) is **always blocked** regardless of settings.
+
 ### Dev Widget
 
 In development, a floating blue button (🛢️) appears in the bottom-right corner of every page. Click it to reveal quick links to:
@@ -197,7 +225,8 @@ EXPLAIN uses `FORMAT JSON` for PostgreSQL, standard `EXPLAIN` for MySQL, and `EX
 2. **Query Store** — an in-memory singleton (`QueryStore`) stores captured queries with thread-safe access. Oldest queries are evicted when `max_queries` is exceeded.
 3. **Explain** — wraps the captured SQL in an `EXPLAIN` statement appropriate for the database adapter and parses the result.
 4. **Schema Inspector** — introspects `ActiveRecord::Base.connection` for tables, columns, indexes, foreign keys, primary keys, row counts, associations, polymorphic columns, and missing indexes.
-5. **Dev Widget Middleware** — a Rack middleware that injects a small HTML snippet before `</body>` on HTML responses in development.
+5. **SQL Console** — runs user-provided SQL through `ActiveRecord::Base.connection.exec_query` with statement-level allow/deny lists to enforce read-only safety.
+6. **Dev Widget Middleware** — a Rack middleware that injects a small HTML snippet before `</body>` on HTML responses in development.
 
 ---
 

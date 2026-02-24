@@ -129,6 +129,80 @@ module RailsDbInspector
       nil
     end
 
+    public
+
+    # Returns a hash of table_name => { data_size:, index_size:, total_size:, row_count: }
+    # Sizes are in bytes. Returns nil for unsupported adapters.
+    def table_sizes
+      adapter = connection.adapter_name.downcase
+      case adapter
+      when /postgres/
+        postgres_table_sizes
+      when /mysql/
+        mysql_table_sizes
+      when /sqlite/
+        sqlite_table_sizes
+      else
+        {}
+      end
+    rescue StandardError
+      {}
+    end
+
+    private
+
+    def postgres_table_sizes
+      tables = connection.tables.sort - IGNORED_TABLES
+      sizes = {}
+      tables.each do |table|
+        quoted = connection.quote_table_name(table)
+        total = connection.select_value("SELECT pg_total_relation_size('#{table}')").to_i
+        table_only = connection.select_value("SELECT pg_relation_size('#{table}')").to_i
+        index_size = total - table_only
+        row_count = safe_row_count(table)
+        sizes[table] = { data_size: table_only, index_size: index_size, total_size: total, row_count: row_count }
+      rescue StandardError
+        sizes[table] = { data_size: nil, index_size: nil, total_size: nil, row_count: nil }
+      end
+      sizes
+    end
+
+    def mysql_table_sizes
+      results = connection.select_all(
+        "SELECT table_name, data_length, index_length FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+      )
+      sizes = {}
+      results.each do |row|
+        name = row["table_name"] || row["TABLE_NAME"]
+        next if IGNORED_TABLES.include?(name)
+
+        data = (row["data_length"] || row["DATA_LENGTH"]).to_i
+        idx = (row["index_length"] || row["INDEX_LENGTH"]).to_i
+        sizes[name] = { data_size: data, index_size: idx, total_size: data + idx, row_count: safe_row_count(name) }
+      end
+      sizes
+    end
+
+    def sqlite_table_sizes
+      tables = connection.tables.sort - IGNORED_TABLES
+      page_size = connection.select_value("PRAGMA page_size").to_i
+      sizes = {}
+      tables.each do |table|
+        # SQLite doesn't provide per-table sizes easily; estimate via page_count
+        # Use dbstat if available, otherwise estimate from row count
+        begin
+          pages = connection.select_value("SELECT SUM(pageno) FROM dbstat WHERE name = '#{table}'")
+          total = pages.to_i * page_size
+        rescue StandardError
+          # dbstat not available, rough estimate
+          total = nil
+        end
+        row_count = safe_row_count(table)
+        sizes[table] = { data_size: total, index_size: nil, total_size: total, row_count: row_count }
+      end
+      sizes
+    end
+
     def introspect_associations(table)
       model = find_model_for_table(table)
       return [] unless model

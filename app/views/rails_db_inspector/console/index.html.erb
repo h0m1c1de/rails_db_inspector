@@ -1,0 +1,444 @@
+<% content_for :head do %>
+<style>
+  .console-wrap { display: flex; flex-direction: column; height: calc(100vh - 140px); gap: 0; }
+
+  /* Editor area */
+  .console-editor { background: #1e1e1e; border-radius: 8px 8px 0 0; border: 1px solid #374151; border-bottom: none; display: flex; flex-direction: column; flex-shrink: 0; }
+  .console-editor-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #2d2d2d; border-radius: 8px 8px 0 0; border-bottom: 1px solid #374151; }
+  .console-editor-header .editor-label { font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; }
+  .console-editor-header .editor-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .console-editor-header .badge-readonly { background: #fef3c7; color: #92400e; }
+  .console-editor-header .badge-writable { background: #dcfce7; color: #166534; }
+  #sql-editor { width: 100%; min-height: 120px; max-height: 200px; background: transparent; color: #d4d4d4; border: none; outline: none; resize: vertical; padding: 12px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.6; tab-size: 2; }
+  #sql-editor::placeholder { color: #6b7280; }
+
+  /* Toolbar */
+  .console-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #2d2d2d; border-left: 1px solid #374151; border-right: 1px solid #374151; }
+  .console-toolbar button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 5px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: background 0.15s; }
+  .btn-run { background: #22c55e; color: #fff; }
+  .btn-run:hover { background: #16a34a; }
+  .btn-run:disabled { background: #6b7280; cursor: not-allowed; }
+  .btn-explain { background: #3b82f6; color: #fff; }
+  .btn-explain:hover { background: #2563eb; }
+  .btn-clear-editor { background: #374151; color: #d1d5db; }
+  .btn-clear-editor:hover { background: #4b5563; }
+  .console-toolbar .shortcut-hint { font-size: 10px; color: #6b7280; margin-left: auto; }
+  .console-toolbar .shortcut-hint kbd { background: #374151; border: 1px solid #4b5563; border-radius: 3px; padding: 1px 4px; font-family: ui-monospace, monospace; font-size: 9px; color: #9ca3af; }
+
+  /* Results area */
+  .console-results { flex: 1; background: #fff; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; overflow: auto; display: flex; flex-direction: column; min-height: 200px; }
+  .results-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+  .results-header .results-label { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+  .results-header .results-meta { font-size: 11px; color: #9ca3af; display: flex; gap: 12px; }
+  .results-header .results-meta strong { color: #374151; }
+  .results-body { flex: 1; overflow: auto; }
+
+  /* Results table */
+  .results-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .results-table th { position: sticky; top: 0; background: #f3f4f6; padding: 6px 12px; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; font-family: ui-monospace, monospace; font-size: 11px; white-space: nowrap; }
+  .results-table td { padding: 4px 12px; border-bottom: 1px solid #f3f4f6; font-family: ui-monospace, monospace; color: #374151; white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+  .results-table tr:hover td { background: #eff6ff; }
+  .results-table td.null-val { color: #d1d5db; font-style: italic; }
+
+  /* Empty / error states */
+  .results-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #9ca3af; gap: 8px; padding: 40px; }
+  .results-empty .empty-icon { font-size: 32px; }
+  .results-empty .empty-text { font-size: 13px; }
+  .results-error { padding: 16px; }
+  .results-error .error-box { padding: 12px 16px; border-radius: 6px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13px; font-family: ui-monospace, monospace; white-space: pre-wrap; }
+
+  /* History sidebar */
+  .console-with-history { display: flex; gap: 16px; height: calc(100vh - 140px); }
+  .console-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .console-history { width: 240px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+  .history-header { padding: 10px 14px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+  .history-header h3 { font-size: 12px; font-weight: 600; color: #374151; margin: 0; }
+  .history-list { flex: 1; overflow-y: auto; padding: 6px; }
+  .history-item { padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: ui-monospace, monospace; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background 0.1s; border-bottom: 1px solid #f3f4f6; }
+  .history-item:hover { background: #eff6ff; color: #2563eb; }
+  .history-item .h-duration { font-size: 9px; color: #9ca3af; font-family: sans-serif; }
+
+  /* Table sidebar */
+  .table-sidebar { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb; }
+  .table-sidebar h4 { font-size: 10px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 10px; margin: 0; }
+  .table-item { padding: 4px 10px; font-size: 11px; font-family: ui-monospace, monospace; color: #6b7280; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 3px; }
+  .table-item:hover { background: #f3f4f6; color: #374151; }
+
+  /* Snippet sidebar */
+  .snippet-sidebar { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb; }
+  .snippet-sidebar h4 { font-size: 10px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 10px; margin: 0; display: flex; align-items: center; justify-content: space-between; }
+  .snippet-category { padding: 2px 10px; }
+  .snippet-category-label { font-size: 10px; font-weight: 600; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 3px 0; }
+  .snippet-category-label:hover { color: #374151; }
+  .snippet-item { padding: 4px 10px 4px 18px; font-size: 11px; color: #6b7280; cursor: pointer; border-radius: 3px; display: flex; align-items: center; gap: 6px; }
+  .snippet-item:hover { background: #eff6ff; color: #2563eb; }
+  .snippet-item .snippet-icon { font-size: 11px; flex-shrink: 0; }
+  .snippet-item .snippet-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+<% end %>
+
+<div class="console-with-history">
+  <!-- History & Tables sidebar -->
+  <div class="console-history">
+    <div class="history-header">
+      <h3>Query History</h3>
+    </div>
+    <div class="history-list" id="history-list">
+      <div class="results-empty" style="padding: 20px;">
+        <span style="font-size: 11px; color: #9ca3af;">No queries yet</span>
+      </div>
+    </div>
+    <div class="table-sidebar">
+      <h4>Tables (<%= @tables.length %>)</h4>
+      <div style="max-height: 160px; overflow-y: auto; padding-bottom: 8px;">
+        <% @tables.each do |t| %>
+          <div class="table-item" onclick="insertTable('<%= t %>')" title="Click to insert"><%= t %></div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Query Snippets -->
+    <div class="snippet-sidebar">
+      <h4>Snippets</h4>
+      <div id="snippet-list" style="max-height: 260px; overflow-y: auto; padding-bottom: 8px;"></div>
+    </div>
+  </div>
+
+  <!-- Main console -->
+  <div class="console-main">
+    <!-- Editor -->
+    <div class="console-editor">
+      <div class="console-editor-header">
+        <span class="editor-label">SQL Console — <%= @adapter %></span>
+        <% if @allow_writes %>
+          <span class="editor-badge badge-writable">Read/Write</span>
+        <% else %>
+          <span class="editor-badge badge-readonly">Read Only</span>
+        <% end %>
+      </div>
+      <textarea id="sql-editor" placeholder="SELECT * FROM users LIMIT 10;" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="console-toolbar">
+      <button class="btn-run" id="btn-run" onclick="runQuery()">▶ Run</button>
+      <button class="btn-explain" onclick="runExplain()">Explain</button>
+      <button class="btn-clear-editor" onclick="clearEditor()">Clear</button>
+      <span class="shortcut-hint"><kbd>⌘</kbd>+<kbd>Enter</kbd> to run · <kbd>⌘</kbd>+<kbd>E</kbd> to explain</span>
+    </div>
+
+    <!-- Results -->
+    <div class="console-results">
+      <div class="results-header" id="results-header" style="display: none;">
+        <span class="results-label">Results</span>
+        <div class="results-meta" id="results-meta"></div>
+      </div>
+      <div class="results-body" id="results-body">
+        <div class="results-empty">
+          <span class="empty-icon">⌨️</span>
+          <span class="empty-text">Write a SQL query above and press <strong>Run</strong> or <kbd>⌘+Enter</kbd></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% content_for :scripts do %>
+<script>
+(function() {
+  'use strict';
+
+  var editor = document.getElementById('sql-editor');
+  var resultsHeader = document.getElementById('results-header');
+  var resultsMeta = document.getElementById('results-meta');
+  var resultsBody = document.getElementById('results-body');
+  var btnRun = document.getElementById('btn-run');
+  var historyList = document.getElementById('history-list');
+  var history = [];
+
+  function getCSRF() {
+    var el = document.querySelector('meta[name=csrf-token]');
+    return el ? el.content : '';
+  }
+
+  function runQuery(explain) {
+    var sql = editor.value.trim();
+    if (!sql) return;
+
+    if (explain) {
+      var adapter = '<%= @adapter %>';
+      if (adapter.match(/postgres/)) {
+        sql = 'EXPLAIN (FORMAT TEXT) ' + sql;
+      } else if (adapter.match(/mysql/)) {
+        sql = 'EXPLAIN ' + sql;
+      } else {
+        sql = 'EXPLAIN QUERY PLAN ' + sql;
+      }
+    }
+
+    btnRun.disabled = true;
+    btnRun.textContent = '⏳ Running...';
+    resultsHeader.style.display = 'flex';
+    resultsMeta.innerHTML = '<span>Running...</span>';
+    resultsBody.innerHTML = '<div class="results-empty"><span class="empty-text">Executing query...</span></div>';
+
+    fetch('<%= console_execute_path %>', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCSRF() },
+      body: JSON.stringify({ sql: sql })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(resp) {
+      btnRun.disabled = false;
+      btnRun.textContent = '▶ Run';
+
+      if (!resp.ok) {
+        showError(resp.data.error || 'Unknown error');
+        addHistory(sql, null, resp.data.error);
+        return;
+      }
+
+      var data = resp.data;
+      showResults(data);
+      addHistory(sql, data.duration_ms, null);
+    })
+    .catch(function(err) {
+      btnRun.disabled = false;
+      btnRun.textContent = '▶ Run';
+      showError('Request failed: ' + err.message);
+    });
+  }
+
+  function showResults(data) {
+    resultsMeta.innerHTML =
+      '<span><strong>' + data.row_count + '</strong> row' + (data.row_count !== 1 ? 's' : '') + '</span>' +
+      '<span><strong>' + data.duration_ms + '</strong> ms</span>' +
+      '<span><strong>' + data.columns.length + '</strong> column' + (data.columns.length !== 1 ? 's' : '') + '</span>';
+
+    if (data.rows.length === 0) {
+      resultsBody.innerHTML = '<div class="results-empty"><span class="empty-icon">📭</span><span class="empty-text">Query returned 0 rows</span></div>';
+      return;
+    }
+
+    var html = '<table class="results-table"><thead><tr>';
+    data.columns.forEach(function(col) {
+      html += '<th>' + escapeHtml(col) + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+    data.rows.forEach(function(row) {
+      html += '<tr>';
+      row.forEach(function(cell) {
+        if (cell === null || cell === undefined) {
+          html += '<td class="null-val">NULL</td>';
+        } else {
+          html += '<td title="' + escapeAttr(String(cell)) + '">' + escapeHtml(String(cell)) + '</td>';
+        }
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    resultsBody.innerHTML = html;
+  }
+
+  function showError(msg) {
+    resultsHeader.style.display = 'flex';
+    resultsMeta.innerHTML = '<span style="color:#dc2626;">Error</span>';
+    resultsBody.innerHTML = '<div class="results-error"><div class="error-box">' + escapeHtml(msg) + '</div></div>';
+  }
+
+  function addHistory(sql, duration, error) {
+    history.unshift({ sql: sql, duration: duration, error: error, time: new Date() });
+    if (history.length > 50) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (history.length === 0) {
+      historyList.innerHTML = '<div class="results-empty" style="padding:20px;"><span style="font-size:11px;color:#9ca3af;">No queries yet</span></div>';
+      return;
+    }
+    var html = '';
+    history.forEach(function(h, i) {
+      var preview = h.sql.replace(/\s+/g, ' ').substring(0, 60);
+      var dur = h.error ? '<span style="color:#dc2626;">error</span>' : '<span class="h-duration">' + h.duration + 'ms</span>';
+      html += '<div class="history-item" onclick="window._console.loadHistory(' + i + ')" title="' + escapeAttr(h.sql) + '">' + escapeHtml(preview) + ' ' + dur + '</div>';
+    });
+    historyList.innerHTML = html;
+  }
+
+  function loadHistory(index) {
+    if (history[index]) {
+      editor.value = history[index].sql;
+      editor.focus();
+    }
+  }
+
+  function clearEditor() {
+    editor.value = '';
+    editor.focus();
+  }
+
+  function insertTable(tableName) {
+    var pos = editor.selectionStart;
+    var before = editor.value.substring(0, pos);
+    var after = editor.value.substring(pos);
+    if (editor.value.trim() === '') {
+      editor.value = 'SELECT * FROM ' + tableName + ' LIMIT 20;';
+    } else {
+      editor.value = before + tableName + after;
+    }
+    editor.focus();
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Keyboard shortcuts
+  editor.addEventListener('keydown', function(e) {
+    // Cmd/Ctrl + Enter = Run
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runQuery();
+    }
+    // Cmd/Ctrl + E = Explain
+    if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+      e.preventDefault();
+      runQuery(true);
+    }
+    // Tab = indent
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var start = editor.selectionStart;
+      var end = editor.selectionEnd;
+      editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+      editor.selectionStart = editor.selectionEnd = start + 2;
+    }
+  });
+
+  // ── Query Snippets ──
+  var adapter = '<%= @adapter %>';
+  var tables = <%= raw @tables.to_json %>;
+  var firstTable = tables[0] || 'table_name';
+
+  var snippets = [
+    { category: '📊 Overview', items: [] },
+    { category: '🔍 Explore', items: [] },
+    { category: '⚡ Performance', items: [] },
+    { category: '🏗️ Schema', items: [] }
+  ];
+
+  // Overview queries
+  snippets[0].items.push({ label: 'Row counts per table', sql: generateRowCountsSQL() });
+  if (adapter.match(/postgres/)) {
+    snippets[0].items.push({ label: 'Table sizes', sql: "SELECT\n  relname AS table_name,\n  pg_size_pretty(pg_total_relation_size(relid)) AS total_size,\n  pg_size_pretty(pg_relation_size(relid)) AS data_size,\n  pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) AS index_size,\n  n_live_tup AS estimated_rows\nFROM pg_catalog.pg_stat_user_tables\nORDER BY pg_total_relation_size(relid) DESC;" });
+    snippets[0].items.push({ label: 'Database size', sql: "SELECT\n  pg_database.datname AS database,\n  pg_size_pretty(pg_database_size(pg_database.datname)) AS size\nFROM pg_database\nWHERE datistemplate = false\nORDER BY pg_database_size(pg_database.datname) DESC;" });
+  } else if (adapter.match(/mysql/)) {
+    snippets[0].items.push({ label: 'Table sizes', sql: "SELECT\n  table_name,\n  ROUND(data_length / 1024 / 1024, 2) AS data_mb,\n  ROUND(index_length / 1024 / 1024, 2) AS index_mb,\n  ROUND((data_length + index_length) / 1024 / 1024, 2) AS total_mb,\n  table_rows AS estimated_rows\nFROM information_schema.tables\nWHERE table_schema = DATABASE()\nORDER BY (data_length + index_length) DESC;" });
+    snippets[0].items.push({ label: 'Database size', sql: "SELECT\n  table_schema AS 'database',\n  ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS total_mb\nFROM information_schema.tables\nGROUP BY table_schema\nORDER BY total_mb DESC;" });
+  } else {
+    snippets[0].items.push({ label: 'Database page info', sql: "PRAGMA page_count;\nPRAGMA page_size;" });
+  }
+
+  // Explore queries
+  snippets[1].items.push({ label: 'Recent records', sql: 'SELECT *\nFROM ' + firstTable + '\nORDER BY id DESC\nLIMIT 20;' });
+  snippets[1].items.push({ label: 'Count with grouping', sql: 'SELECT\n  -- change_column_here,\n  COUNT(*) AS count\nFROM ' + firstTable + '\n-- GROUP BY change_column_here\nORDER BY count DESC\nLIMIT 20;' });
+  snippets[1].items.push({ label: 'Find duplicates', sql: 'SELECT\n  -- change_column_here,\n  COUNT(*) AS occurrences\nFROM ' + firstTable + '\n-- GROUP BY change_column_here\n-- HAVING COUNT(*) > 1\nORDER BY occurrences DESC;' });
+  snippets[1].items.push({ label: 'NULL value audit', sql: generateNullAuditSQL() });
+
+  // Performance queries
+  if (adapter.match(/postgres/)) {
+    snippets[2].items.push({ label: 'Index usage stats', sql: "SELECT\n  schemaname,\n  relname AS table_name,\n  indexrelname AS index_name,\n  idx_scan AS times_used,\n  pg_size_pretty(pg_relation_size(indexrelid)) AS index_size\nFROM pg_stat_user_indexes\nORDER BY idx_scan ASC;" });
+    snippets[2].items.push({ label: 'Unused indexes', sql: "SELECT\n  relname AS table_name,\n  indexrelname AS index_name,\n  idx_scan AS scans,\n  pg_size_pretty(pg_relation_size(indexrelid)) AS size\nFROM pg_stat_user_indexes\nWHERE idx_scan = 0\nORDER BY pg_relation_size(indexrelid) DESC;" });
+    snippets[2].items.push({ label: 'Seq scan heavy tables', sql: "SELECT\n  relname AS table_name,\n  seq_scan,\n  seq_tup_read,\n  idx_scan,\n  idx_tup_fetch,\n  CASE WHEN seq_scan + idx_scan > 0\n    THEN ROUND(100.0 * seq_scan / (seq_scan + idx_scan), 1)\n    ELSE 0 END AS seq_scan_pct\nFROM pg_stat_user_tables\nWHERE seq_scan > 0\nORDER BY seq_tup_read DESC\nLIMIT 20;" });
+    snippets[2].items.push({ label: 'Table bloat estimate', sql: "SELECT\n  relname AS table_name,\n  n_dead_tup AS dead_tuples,\n  n_live_tup AS live_tuples,\n  CASE WHEN n_live_tup > 0\n    THEN ROUND(100.0 * n_dead_tup / n_live_tup, 1)\n    ELSE 0 END AS dead_pct,\n  last_vacuum,\n  last_autovacuum\nFROM pg_stat_user_tables\nORDER BY n_dead_tup DESC;" });
+    snippets[2].items.push({ label: 'Cache hit ratio', sql: "SELECT\n  'index' AS type,\n  ROUND(100.0 * sum(idx_blks_hit) / nullif(sum(idx_blks_hit + idx_blks_read), 0), 2) AS hit_pct\nFROM pg_statio_user_indexes\nUNION ALL\nSELECT\n  'table',\n  ROUND(100.0 * sum(heap_blks_hit) / nullif(sum(heap_blks_hit + heap_blks_read), 0), 2)\nFROM pg_statio_user_tables;" });
+    snippets[2].items.push({ label: 'Long running queries', sql: "SELECT\n  pid,\n  now() - pg_stat_activity.query_start AS duration,\n  query,\n  state\nFROM pg_stat_activity\nWHERE state != 'idle'\n  AND query NOT ILIKE '%pg_stat_activity%'\nORDER BY duration DESC\nLIMIT 10;" });
+  } else if (adapter.match(/mysql/)) {
+    snippets[2].items.push({ label: 'Index usage stats', sql: "SELECT\n  table_name,\n  index_name,\n  seq_in_index,\n  column_name,\n  cardinality\nFROM information_schema.statistics\nWHERE table_schema = DATABASE()\nORDER BY table_name, index_name, seq_in_index;" });
+    snippets[2].items.push({ label: 'Processlist', sql: "SHOW FULL PROCESSLIST;" });
+  } else {
+    snippets[2].items.push({ label: 'Index list', sql: "SELECT * FROM sqlite_master WHERE type = 'index' ORDER BY tbl_name;" });
+    snippets[2].items.push({ label: 'Integrity check', sql: "PRAGMA integrity_check;" });
+  }
+
+  // Schema queries
+  if (adapter.match(/postgres/)) {
+    snippets[3].items.push({ label: 'All columns', sql: "SELECT\n  table_name,\n  column_name,\n  data_type,\n  is_nullable,\n  column_default\nFROM information_schema.columns\nWHERE table_schema = 'public'\nORDER BY table_name, ordinal_position;" });
+    snippets[3].items.push({ label: 'Foreign keys', sql: "SELECT\n  tc.table_name,\n  kcu.column_name,\n  ccu.table_name AS references_table,\n  ccu.column_name AS references_column\nFROM information_schema.table_constraints tc\nJOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name\nJOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name\nWHERE tc.constraint_type = 'FOREIGN KEY'\nORDER BY tc.table_name;" });
+    snippets[3].items.push({ label: 'Constraints', sql: "SELECT\n  conname AS constraint_name,\n  conrelid::regclass AS table_name,\n  contype AS type,\n  pg_get_constraintdef(oid) AS definition\nFROM pg_constraint\nWHERE connamespace = 'public'::regnamespace\nORDER BY conrelid::regclass::text, contype;" });
+  } else if (adapter.match(/mysql/)) {
+    snippets[3].items.push({ label: 'All columns', sql: "SELECT\n  table_name,\n  column_name,\n  column_type,\n  is_nullable,\n  column_default\nFROM information_schema.columns\nWHERE table_schema = DATABASE()\nORDER BY table_name, ordinal_position;" });
+    snippets[3].items.push({ label: 'Foreign keys', sql: "SELECT\n  table_name,\n  column_name,\n  referenced_table_name,\n  referenced_column_name\nFROM information_schema.key_column_usage\nWHERE referenced_table_name IS NOT NULL\n  AND table_schema = DATABASE()\nORDER BY table_name;" });
+  } else {
+    snippets[3].items.push({ label: 'All tables & columns', sql: "SELECT\n  m.name AS table_name,\n  p.name AS column_name,\n  p.type AS data_type,\n  p.\"notnull\" AS not_null,\n  p.dflt_value AS default_value\nFROM sqlite_master m\nJOIN pragma_table_info(m.name) p\nWHERE m.type = 'table'\n  AND m.name NOT LIKE 'sqlite_%'\nORDER BY m.name, p.cid;" });
+    snippets[3].items.push({ label: 'Foreign keys', sql: 'PRAGMA foreign_key_list(' + firstTable + ');' });
+  }
+
+  function generateRowCountsSQL() {
+    if (adapter.match(/postgres/)) {
+      return "SELECT\n  relname AS table_name,\n  n_live_tup AS estimated_rows\nFROM pg_stat_user_tables\nORDER BY n_live_tup DESC;";
+    }
+    // Fallback: UNION ALL of COUNT(*) for each table
+    var parts = tables.map(function(t) {
+      return "SELECT '" + t + "' AS table_name, COUNT(*) AS row_count FROM " + t;
+    });
+    return parts.join('\nUNION ALL\n') + '\nORDER BY row_count DESC;';
+  }
+
+  function generateNullAuditSQL() {
+    if (adapter.match(/postgres/)) {
+      return "SELECT\n  col.table_name,\n  col.column_name,\n  col.is_nullable\nFROM information_schema.columns col\nWHERE col.table_schema = 'public'\n  AND col.is_nullable = 'YES'\nORDER BY col.table_name, col.column_name;";
+    }
+    return 'SELECT *\nFROM ' + firstTable + '\nWHERE id IS NOT NULL\nLIMIT 20;\n-- Modify WHERE clause to check columns for NULLs';
+  }
+
+  // Render snippet categories
+  function renderSnippets() {
+    var container = document.getElementById('snippet-list');
+    var html = '';
+    snippets.forEach(function(cat, ci) {
+      if (cat.items.length === 0) return;
+      html += '<div class="snippet-category">';
+      html += '<div class="snippet-category-label" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span\').textContent=this.nextElementSibling.style.display===\'none\'?\'▶\':\'▼\'">';
+      html += '<span>▼</span> ' + cat.category + ' <span style="font-size:9px;color:#9ca3af;">(' + cat.items.length + ')</span></div>';
+      html += '<div>';
+      cat.items.forEach(function(item, ii) {
+        html += '<div class="snippet-item" onclick="window._console.loadSnippet(' + ci + ',' + ii + ')" title="' + escapeAttr(item.sql.substring(0, 200)) + '">';
+        html += '<span class="snippet-label">' + escapeHtml(item.label) + '</span>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+    container.innerHTML = html;
+  }
+  renderSnippets();
+
+  function loadSnippet(catIndex, itemIndex) {
+    var item = snippets[catIndex] && snippets[catIndex].items[itemIndex];
+    if (item) {
+      editor.value = item.sql;
+      editor.focus();
+    }
+  }
+
+  // Expose for inline handlers
+  window._console = {
+    run: runQuery,
+    loadHistory: loadHistory,
+    loadSnippet: loadSnippet,
+    insertTable: insertTable
+  };
+  window.runQuery = function() { runQuery(false); };
+  window.runExplain = function() { runQuery(true); };
+  window.clearEditor = clearEditor;
+  window.insertTable = insertTable;
+})();
+</script>
+<% end %>

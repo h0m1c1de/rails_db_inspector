@@ -1076,4 +1076,98 @@ RSpec.describe RailsDbInspector::SchemaInspector do
       expect(result).to be_empty
     end
   end
+
+  describe "#table_sizes" do
+    context "with PostgreSQL adapter" do
+      before do
+        allow(connection).to receive(:adapter_name).and_return("PostgreSQL")
+        allow(connection).to receive(:tables).and_return(%w[users posts schema_migrations ar_internal_metadata])
+        allow(connection).to receive(:quote_table_name) { |t| "\"#{t}\"" }
+      end
+
+      it "returns size info per table" do
+        allow(connection).to receive(:select_value).with("SELECT pg_total_relation_size('users')").and_return(65536)
+        allow(connection).to receive(:select_value).with("SELECT pg_relation_size('users')").and_return(49152)
+        allow(connection).to receive(:select_value).with("SELECT pg_total_relation_size('posts')").and_return(131072)
+        allow(connection).to receive(:select_value).with("SELECT pg_relation_size('posts')").and_return(98304)
+        allow(connection).to receive(:select_value).with(/SELECT COUNT/).and_return(100)
+
+        sizes = inspector.table_sizes
+        expect(sizes).to include("users", "posts")
+        expect(sizes).not_to include("schema_migrations", "ar_internal_metadata")
+        expect(sizes["users"][:total_size]).to eq(65536)
+        expect(sizes["users"][:data_size]).to eq(49152)
+        expect(sizes["users"][:index_size]).to eq(16384)
+        expect(sizes["users"][:row_count]).to eq(100)
+      end
+    end
+
+    context "with MySQL adapter" do
+      before do
+        allow(connection).to receive(:adapter_name).and_return("Mysql2")
+        allow(connection).to receive(:quote_table_name) { |t| "`#{t}`" }
+      end
+
+      it "returns size info from information_schema" do
+        rows = [
+          { "table_name" => "users", "data_length" => 32768, "index_length" => 8192 },
+          { "table_name" => "posts", "data_length" => 65536, "index_length" => 16384 },
+          { "table_name" => "schema_migrations", "data_length" => 1024, "index_length" => 512 }
+        ]
+        allow(connection).to receive(:select_all).and_return(rows)
+        allow(connection).to receive(:select_value).with(/SELECT COUNT/).and_return(50)
+
+        sizes = inspector.table_sizes
+        expect(sizes).to include("users", "posts")
+        expect(sizes).not_to include("schema_migrations")
+        expect(sizes["users"][:total_size]).to eq(40960)
+        expect(sizes["users"][:data_size]).to eq(32768)
+        expect(sizes["users"][:index_size]).to eq(8192)
+      end
+    end
+
+    context "with SQLite adapter" do
+      before do
+        allow(connection).to receive(:adapter_name).and_return("SQLite")
+        allow(connection).to receive(:tables).and_return(%w[users schema_migrations])
+        allow(connection).to receive(:quote_table_name) { |t| "\"#{t}\"" }
+      end
+
+      it "returns size info using dbstat" do
+        allow(connection).to receive(:select_value).with("PRAGMA page_size").and_return(4096)
+        allow(connection).to receive(:select_value).with(/SELECT SUM/).and_return(10)
+        allow(connection).to receive(:select_value).with(/SELECT COUNT/).and_return(25)
+
+        sizes = inspector.table_sizes
+        expect(sizes).to include("users")
+        expect(sizes).not_to include("schema_migrations")
+        expect(sizes["users"][:total_size]).to eq(40960)
+        expect(sizes["users"][:row_count]).to eq(25)
+      end
+
+      it "handles missing dbstat gracefully" do
+        allow(connection).to receive(:select_value).with("PRAGMA page_size").and_return(4096)
+        allow(connection).to receive(:select_value).with(/SELECT SUM/).and_raise(StandardError.new("no such table: dbstat"))
+        allow(connection).to receive(:select_value).with(/SELECT COUNT/).and_return(25)
+
+        sizes = inspector.table_sizes
+        expect(sizes["users"][:total_size]).to be_nil
+        expect(sizes["users"][:row_count]).to eq(25)
+      end
+    end
+
+    context "with unknown adapter" do
+      it "returns empty hash" do
+        allow(connection).to receive(:adapter_name).and_return("Oracle")
+        expect(inspector.table_sizes).to eq({})
+      end
+    end
+
+    context "when an error occurs" do
+      it "returns empty hash" do
+        allow(connection).to receive(:adapter_name).and_raise(StandardError.new("oops"))
+        expect(inspector.table_sizes).to eq({})
+      end
+    end
+  end
 end

@@ -178,6 +178,7 @@
 
   var schema = <%= raw(schema_to_json(@schema)) %>;
   var relationships = <%= raw(relationships_to_json(@relationships)) %>;
+  var tableSizes = <%= raw((@table_sizes || {}).to_json) %>;
   var tableNames = Object.keys(schema);
 
   var canvasWrap = document.getElementById('schema-canvas-wrap');
@@ -266,6 +267,29 @@
   });
 
   // Render health bar
+  function formatBytes(bytes) {
+    if (bytes == null || bytes === 0) return '0 B';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+  }
+
+  // Compute total database size from tableSizes
+  var totalDbSize = 0, totalDataSize = 0, totalIndexSize = 0;
+  var largestTable = null, largestTableSize = 0;
+  Object.keys(tableSizes).forEach(function(t) {
+    var s = tableSizes[t];
+    if (s && s.total_size) {
+      totalDbSize += s.total_size;
+      totalDataSize += (s.data_size || 0);
+      totalIndexSize += (s.index_size || 0);
+      if (s.total_size > largestTableSize) {
+        largestTableSize = s.total_size;
+        largestTable = t;
+      }
+    }
+  });
+
   (function renderHealthBar() {
     var bar = document.getElementById('health-bar');
     var html = '<div class="health-grid">';
@@ -273,6 +297,14 @@
     html += '<div class="health-stat"><span class="stat-icon">&#x1F4DD;</span> Columns: <span class="stat-val">' + healthStats.totalCols + '</span></div>';
     html += '<div class="health-stat"><span class="stat-icon">&#x26A1;</span> Indexes: <span class="stat-val">' + healthStats.totalIndexes + '</span></div>';
     html += '<div class="health-stat"><span class="stat-icon">&#x1F4E6;</span> Total rows: <span class="stat-val">' + healthStats.totalRows.toLocaleString() + '</span></div>';
+    // Database size stats
+    if (totalDbSize > 0) {
+      html += '<div class="health-stat"><span class="stat-icon">&#x1F4BE;</span> DB size: <span class="stat-val">' + formatBytes(totalDbSize) + '</span></div>';
+      html += '<div class="health-stat"><span class="stat-icon">&#x1F4C0;</span> Data / Index: <span class="stat-val">' + formatBytes(totalDataSize) + ' / ' + formatBytes(totalIndexSize) + '</span></div>';
+      if (largestTable) {
+        html += '<div class="health-stat warn" style="cursor:pointer;" onclick="event.preventDefault();window._erd.select(\'' + largestTable + '\');window._erd.centerOn(\'' + largestTable + '\');"><span class="stat-icon">&#x1F3CB;</span> Largest: <span class="stat-val">' + largestTable + ' (' + formatBytes(largestTableSize) + ')</span></div>';
+      }
+    }
     if (healthStats.missingIndexes > 0) {
       html += '<div class="health-stat warn"><span class="stat-icon">&#x26A0;</span> Missing indexes: <span class="stat-val">' + healthStats.missingIndexes + '</span></div>';
     } else {
@@ -326,7 +358,10 @@
       html += '<span class="node-poly-badge" title="' + polyCount + ' polymorphic">P</span>';
     }
     if (info.row_count != null) {
-      html += '<span class="row-count">' + info.row_count.toLocaleString() + ' rows</span>';
+      var sizeStr = '';
+      var ns = tableSizes[name];
+      if (ns && ns.total_size) { sizeStr = ' · ' + formatBytes(ns.total_size); }
+      html += '<span class="row-count">' + info.row_count.toLocaleString() + ' rows' + sizeStr + '</span>';
     }
     html += '</div>';
 
@@ -395,7 +430,12 @@
       var div = document.createElement('div');
       div.className = 'sidebar-item' + (selectedNode === name ? ' active' : '');
       var cnt = (schema[name].columns || []).length;
-      var badges = '<span class="badge">' + cnt + '</span>';
+      var sizeLabel = '';
+      var sInfo = tableSizes[name];
+      if (sInfo && sInfo.total_size) {
+        sizeLabel = '<span style="font-size:9px;color:#9ca3af;font-family:sans-serif;margin-right:4px;">' + formatBytes(sInfo.total_size) + '</span>';
+      }
+      var badges = sizeLabel + '<span class="badge">' + cnt + '</span>';
       var mi = (schema[name].missing_indexes || []).length;
       if (mi > 0) badges = '<span style="color:#d97706;font-size:10px;margin-right:4px;" title="' + mi + ' missing index(es)">&#x26A0;</span>' + badges;
       var si = (schema[name].index_suggestions || []).length;
@@ -659,7 +699,35 @@
     var html = '';
 
     if (info.row_count != null) {
-      html += '<div class="detail-section"><div style="font-size:13px;color:#6b7280;">Rows: <strong style="color:#111827;">' + info.row_count.toLocaleString() + '</strong></div></div>';
+      html += '<div class="detail-section"><div style="font-size:13px;color:#6b7280;">Rows: <strong style="color:#111827;">' + info.row_count.toLocaleString() + '</strong></div>';
+      // Table size info
+      var sizeInfo = tableSizes[name];
+      if (sizeInfo && sizeInfo.total_size) {
+        html += '<div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">';
+        html += '<div style="font-size:11px;color:#6b7280;">Total: <strong style="color:#111827;">' + formatBytes(sizeInfo.total_size) + '</strong></div>';
+        if (sizeInfo.data_size != null) {
+          html += '<div style="font-size:11px;color:#6b7280;">Data: <strong style="color:#111827;">' + formatBytes(sizeInfo.data_size) + '</strong></div>';
+        }
+        if (sizeInfo.index_size != null) {
+          html += '<div style="font-size:11px;color:#6b7280;">Indexes: <strong style="color:#111827;">' + formatBytes(sizeInfo.index_size) + '</strong></div>';
+        }
+        if (sizeInfo.total_size > 0 && sizeInfo.data_size != null && sizeInfo.index_size != null) {
+          var dataPct = Math.round((sizeInfo.data_size / sizeInfo.total_size) * 100);
+          var idxPct = 100 - dataPct;
+          html += '<div style="font-size:11px;color:#6b7280;">Ratio: <strong style="color:#111827;">' + dataPct + '% / ' + idxPct + '%</strong></div>';
+        }
+        html += '</div>';
+        // Size bar visualization
+        if (sizeInfo.data_size != null && sizeInfo.index_size != null && sizeInfo.total_size > 0) {
+          var dw = Math.round((sizeInfo.data_size / sizeInfo.total_size) * 100);
+          html += '<div style="margin-top:6px;height:8px;border-radius:4px;overflow:hidden;display:flex;background:#e5e7eb;">';
+          html += '<div style="width:' + dw + '%;background:#3b82f6;" title="Data: ' + formatBytes(sizeInfo.data_size) + '"></div>';
+          html += '<div style="width:' + (100-dw) + '%;background:#f59e0b;" title="Indexes: ' + formatBytes(sizeInfo.index_size) + '"></div>';
+          html += '</div>';
+          html += '<div style="display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;margin-top:2px;"><span>&#x1F535; Data</span><span>&#x1F7E1; Indexes</span></div>';
+        }
+      }
+      html += '</div>';
     }
 
     // Missing index warnings
