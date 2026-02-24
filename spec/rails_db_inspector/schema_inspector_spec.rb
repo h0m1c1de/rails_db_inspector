@@ -116,6 +116,12 @@ RSpec.describe RailsDbInspector::SchemaInspector do
       schema = inspector.introspect
       expect(schema["posts"][:missing_indexes]).to eq [ "user_id" ]
     end
+
+    it "includes index_suggestions key in introspect results" do
+      schema = inspector.introspect
+      expect(schema["posts"]).to have_key(:index_suggestions)
+      expect(schema["posts"][:index_suggestions]).to be_an(Array)
+    end
   end
 
   describe "#introspect - foreign_keys not supported" do
@@ -328,6 +334,250 @@ RSpec.describe RailsDbInspector::SchemaInspector do
   describe "#connection" do
     it "exposes the connection as an attribute reader" do
       expect(inspector.connection).to be connection
+    end
+  end
+
+  describe "#suggest_polymorphic_composite_indexes" do
+    it "suggests composite index for polymorphic columns without existing composite index" do
+      polymorphics = [
+        { name: "commentable", type_column: "commentable_type", id_column: "commentable_id" }
+      ]
+      indexes = []
+
+      result = inspector.send(:suggest_polymorphic_composite_indexes, "comments", indexes, polymorphics)
+
+      expect(result.length).to eq 1
+      expect(result.first[:columns]).to eq [ "commentable_type", "commentable_id" ]
+      expect(result.first[:reason]).to eq :polymorphic
+      expect(result.first[:sql]).to include("CREATE INDEX")
+      expect(result.first[:migration]).to include("add_index")
+    end
+
+    it "skips polymorphic suggestion when composite index already exists" do
+      polymorphics = [
+        { name: "commentable", type_column: "commentable_type", id_column: "commentable_id" }
+      ]
+      indexes = [
+        { name: "index_comments_on_commentable", columns: [ "commentable_type", "commentable_id" ], unique: false }
+      ]
+
+      result = inspector.send(:suggest_polymorphic_composite_indexes, "comments", indexes, polymorphics)
+      expect(result).to be_empty
+    end
+
+    it "returns empty when no polymorphic columns" do
+      result = inspector.send(:suggest_polymorphic_composite_indexes, "posts", [], [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#suggest_join_table_composite_indexes" do
+    let(:column_post_id) do
+      double("column", name: "post_id", sql_type: "integer", null: false, default: nil)
+    end
+    let(:column_tag_id) do
+      double("column", name: "tag_id", sql_type: "integer", null: false, default: nil)
+    end
+
+    it "suggests composite index for a join table" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "tag_id", type: "integer" }
+      ]
+      indexes = []
+      associations = []
+
+      result = inspector.send(:suggest_join_table_composite_indexes, "post_tags", columns, indexes, associations)
+
+      # Should suggest both a regular and unique composite
+      regular = result.select { |s| s[:reason] == :join_table }
+      unique = result.select { |s| s[:reason] == :join_table_unique }
+      expect(regular.length).to eq 1
+      expect(regular.first[:columns]).to eq [ "post_id", "tag_id" ]
+      expect(unique.length).to eq 1
+    end
+
+    it "skips suggestion when composite index already exists" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "tag_id", type: "integer" }
+      ]
+      indexes = [
+        { name: "idx_post_tags", columns: [ "post_id", "tag_id" ], unique: true }
+      ]
+      associations = []
+
+      result = inspector.send(:suggest_join_table_composite_indexes, "post_tags", columns, indexes, associations)
+      expect(result).to be_empty
+    end
+
+    it "returns empty for non-join tables" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "name", type: "varchar" },
+        { name: "email", type: "varchar" },
+        { name: "user_id", type: "integer" }
+      ]
+      indexes = []
+      associations = []
+
+      result = inspector.send(:suggest_join_table_composite_indexes, "profiles", columns, indexes, associations)
+      expect(result).to be_empty
+    end
+
+    it "detects join table via through association" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "tag_id", type: "integer" },
+        { name: "extra_data", type: "text" },
+        { name: "another_col", type: "text" },
+        { name: "more_stuff", type: "text" }
+      ]
+      indexes = []
+      associations = [ { name: "tags", macro: "has_many", through: "taggings", foreign_key: "post_id", target_table: "tags" } ]
+
+      result = inspector.send(:suggest_join_table_composite_indexes, "taggings", columns, indexes, associations)
+      expect(result).not_to be_empty
+    end
+  end
+
+  describe "#suggest_query_driven_indexes" do
+    before do
+      RailsDbInspector::QueryStore.instance.clear!
+    end
+
+    it "returns empty when no queries captured" do
+      result = inspector.send(:suggest_query_driven_indexes, "posts", [])
+      expect(result).to be_empty
+    end
+
+    it "suggests composite index based on query patterns" do
+      # Add queries that reference multiple columns together
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts WHERE user_id = 1 AND status = 'published' ORDER BY created_at DESC",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      indexes = []
+      result = inspector.send(:suggest_query_driven_indexes, "posts", indexes)
+
+      expect(result).not_to be_empty
+      expect(result.first[:reason]).to eq :query_pattern
+      expect(result.first[:columns].length).to be >= 2
+    end
+
+    it "skips suggestion when composite index already covers columns" do
+      3.times do
+        RailsDbInspector::QueryStore.instance.add(
+          sql: "SELECT * FROM posts WHERE user_id = 1 AND status = 'active'",
+          name: "Post Load",
+          binds: [],
+          duration_ms: 5.0,
+          connection_id: 1,
+          timestamp: Time.now
+        )
+      end
+
+      indexes = [
+        { name: "idx_posts_user_status", columns: [ "user_id", "status" ], unique: false }
+      ]
+      result = inspector.send(:suggest_query_driven_indexes, "posts", indexes)
+      expect(result).to be_empty
+    end
+
+    it "requires at least 2 occurrences before suggesting" do
+      RailsDbInspector::QueryStore.instance.add(
+        sql: "SELECT * FROM posts WHERE user_id = 1 AND status = 'active'",
+        name: "Post Load",
+        binds: [],
+        duration_ms: 5.0,
+        connection_id: 1,
+        timestamp: Time.now
+      )
+
+      result = inspector.send(:suggest_query_driven_indexes, "posts", [])
+      expect(result).to be_empty
+    end
+  end
+
+  describe "#references_table?" do
+    it "returns true when table is referenced" do
+      expect(inspector.send(:references_table?, "SELECT * FROM posts WHERE id = 1", "posts")).to be true
+    end
+
+    it "returns false when table is not referenced" do
+      expect(inspector.send(:references_table?, "SELECT * FROM users WHERE id = 1", "posts")).to be false
+    end
+  end
+
+  describe "#extract_where_columns" do
+    it "extracts columns from table-qualified WHERE clause" do
+      sql = "SELECT * FROM posts WHERE posts.user_id = 1 AND posts.status = 'active'"
+      result = inspector.send(:extract_where_columns, sql, "posts")
+      expect(result).to include("user_id")
+      expect(result).to include("status")
+    end
+
+    it "extracts columns from simple WHERE clause in single-table queries" do
+      sql = "SELECT * FROM posts WHERE user_id = 1 AND status = 'active'"
+      result = inspector.send(:extract_where_columns, sql, "posts")
+      expect(result).to include("user_id")
+      expect(result).to include("status")
+    end
+  end
+
+  describe "#extract_order_columns" do
+    it "extracts columns from table-qualified ORDER BY" do
+      sql = "SELECT * FROM posts ORDER BY posts.created_at DESC"
+      result = inspector.send(:extract_order_columns, sql, "posts")
+      expect(result).to include("created_at")
+    end
+
+    it "extracts columns from simple ORDER BY in single-table queries" do
+      sql = "SELECT * FROM posts ORDER BY created_at DESC"
+      result = inspector.send(:extract_order_columns, sql, "posts")
+      expect(result).to include("created_at")
+    end
+  end
+
+  describe "#looks_like_join_table?" do
+    it "identifies a join table with 2 FK columns and few other columns" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "tag_id", type: "integer" }
+      ]
+      expect(inspector.send(:looks_like_join_table?, "post_tags", columns)).to be true
+    end
+
+    it "rejects a table with many non-FK columns" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "post_id", type: "integer" },
+        { name: "tag_id", type: "integer" },
+        { name: "name", type: "varchar" },
+        { name: "description", type: "text" },
+        { name: "priority", type: "integer" }
+      ]
+      expect(inspector.send(:looks_like_join_table?, "post_tags", columns)).to be false
+    end
+
+    it "rejects a table with only one FK column" do
+      columns = [
+        { name: "id", type: "integer" },
+        { name: "user_id", type: "integer" },
+        { name: "name", type: "varchar" }
+      ]
+      expect(inspector.send(:looks_like_join_table?, "profiles", columns)).to be false
     end
   end
 end
