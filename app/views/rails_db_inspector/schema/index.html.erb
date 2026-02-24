@@ -98,6 +98,15 @@
   #heat-legend { position: absolute; bottom: 48px; left: 12px; display: flex; align-items: center; gap: 4px; font-size: 10px; color: #9ca3af; z-index: 50; background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 6px; border: 1px solid #e5e7eb; }
   #heat-legend .heat-swatch { width: 12px; height: 10px; border-radius: 2px; }
 
+  /* Loading overlay */
+  #schema-loading { position: absolute; inset: 0; background: rgba(248,250,252,0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; transition: opacity 0.4s ease; }
+  #schema-loading.fade-out { opacity: 0; pointer-events: none; }
+  #schema-loading .spinner { width: 36px; height: 36px; border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #schema-loading .load-label { margin-top: 14px; font-size: 13px; font-weight: 500; color: #6b7280; }
+  #schema-loading .load-timer { margin-top: 4px; font-size: 22px; font-weight: 700; font-family: ui-monospace, monospace; color: #374151; letter-spacing: 0.02em; }
+  #schema-loading .load-sub { margin-top: 6px; font-size: 11px; color: #9ca3af; }
+
 </style>
 <% end %>
 
@@ -116,6 +125,14 @@
   <div id="schema-canvas-wrap">
     <svg id="schema-svg"></svg>
     <div id="schema-canvas"></div>
+
+    <!-- Loading Overlay -->
+    <div id="schema-loading">
+      <div class="spinner"></div>
+      <div class="load-label">Laying out schema&hellip;</div>
+      <div class="load-timer" id="load-timer">0.0s</div>
+      <div class="load-sub" id="load-table-count"></div>
+    </div>
 
     <!-- Detail Panel -->
     <div id="detail-panel">
@@ -491,9 +508,36 @@
     return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
   }
 
+  // Loading overlay / timer
+  var loadingOverlay = document.getElementById('schema-loading');
+  var loadTimerEl = document.getElementById('load-timer');
+  var loadTableCountEl = document.getElementById('load-table-count');
+  var loadStart = performance.now();
+  var loadingDone = false;
+
+  loadTableCountEl.textContent = tableNames.length + ' tables \u00B7 ' + relationships.length + ' relationships';
+
+  function updateLoadTimer() {
+    if (loadingDone) return;
+    var elapsed = ((performance.now() - loadStart) / 1000).toFixed(1);
+    loadTimerEl.textContent = elapsed + 's';
+    requestAnimationFrame(updateLoadTimer);
+  }
+  requestAnimationFrame(updateLoadTimer);
+
+  function hideLoading() {
+    if (loadingDone) return;
+    loadingDone = true;
+    var elapsed = ((performance.now() - loadStart) / 1000).toFixed(1);
+    loadTimerEl.textContent = elapsed + 's';
+    loadingOverlay.classList.add('fade-out');
+    setTimeout(function() { loadingOverlay.style.display = 'none'; }, 500);
+  }
+
   // Animation loop
   function tick() {
     simulate();
+    if (!loadingDone && simAlpha < 0.01) hideLoading();
     requestAnimationFrame(tick);
   }
   tick();
