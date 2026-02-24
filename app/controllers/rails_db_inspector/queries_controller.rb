@@ -28,6 +28,7 @@ module RailsDbInspector
 
       explainer = RailsDbInspector::Explain.for_connection(ActiveRecord::Base.connection)
       @explain = explainer.explain(@query.sql, analyze: analyze)
+      @tables = ActiveRecord::Base.connection.tables.reject { |t| t.match?(/^(schema_migrations|ar_internal_metadata)$/) }.sort
     rescue RailsDbInspector::Explain::DangerousQuery => e
       render plain: e.message, status: :unprocessable_entity
     rescue RailsDbInspector::Explain::UnsupportedAdapter => e

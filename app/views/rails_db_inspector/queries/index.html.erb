@@ -101,6 +101,110 @@
     </div>
   <% end %>
 
+  <!-- Slow Query Filter Toolbar -->
+  <div class="bg-white rounded-lg shadow overflow-hidden" id="slow-query-filter">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-3">
+          <h2 class="text-lg font-medium text-gray-900">🔍 Query Filter</h2>
+          <div class="flex items-center rounded-lg border border-gray-300 overflow-hidden text-sm" id="filter-buttons">
+            <button type="button" data-filter="all" class="filter-btn px-3 py-1.5 bg-blue-600 text-white font-medium transition-colors">All</button>
+            <button type="button" data-filter="slow" class="filter-btn px-3 py-1.5 bg-white text-gray-700 hover:bg-yellow-50 border-l border-gray-300 transition-colors">Slow (&gt;100ms)</button>
+            <button type="button" data-filter="very-slow" class="filter-btn px-3 py-1.5 bg-white text-gray-700 hover:bg-red-50 border-l border-gray-300 transition-colors">Critical (&gt;1s)</button>
+            <button type="button" data-filter="custom" class="filter-btn px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50 border-l border-gray-300 transition-colors">Custom</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div id="custom-threshold" class="hidden flex items-center gap-2">
+            <label class="text-sm text-gray-600">Threshold:</label>
+            <input type="number" id="threshold-input" min="0" step="10" value="50" class="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+            <span class="text-sm text-gray-500">ms</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm text-gray-600">Sort:</label>
+            <select id="sort-select" class="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500">
+              <option value="time">By Time (newest)</option>
+              <option value="duration-desc">By Duration (slowest)</option>
+              <option value="duration-asc">By Duration (fastest)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Filter Summary Banner -->
+    <div id="filter-summary" class="hidden px-6 py-3 bg-amber-50 border-b border-amber-200">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2 text-sm">
+          <span class="text-amber-700">
+            Showing <strong id="filter-visible-count">0</strong> of <strong id="filter-total-count">0</strong> queries
+            <span id="filter-label-text"></span>
+          </span>
+        </div>
+        <button type="button" id="clear-filter-btn" class="text-xs text-amber-600 hover:text-amber-800 underline">Clear filter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slow Query Log Panel -->
+  <% slow_queries = @queries.select { |q| q.duration_ms > 100 }.sort_by { |q| -q.duration_ms } %>
+  <% if slow_queries.any? %>
+    <div class="bg-white rounded-lg shadow overflow-hidden" id="slow-query-log">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <h2 class="text-lg font-medium text-red-900">🐢 Slow Query Log</h2>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
+              <%= slow_queries.length %> slow <%= slow_queries.length == 1 ? 'query' : 'queries' %>
+            </span>
+          </div>
+          <button type="button" onclick="document.getElementById('slow-log-body').classList.toggle('hidden'); this.querySelector('span').textContent = document.getElementById('slow-log-body').classList.contains('hidden') ? '▶' : '▼'" class="text-sm text-gray-500 hover:text-gray-700">
+            <span>▼</span>
+          </button>
+        </div>
+        <p class="mt-1 text-sm text-gray-500">Queries exceeding 100ms threshold, ranked by duration</p>
+      </div>
+      <div id="slow-log-body">
+        <div class="divide-y divide-gray-100">
+          <% slow_queries.first(20).each_with_index do |q, i| %>
+            <div class="px-6 py-3 hover:bg-red-50 transition-colors flex items-center gap-4">
+              <div class="flex-shrink-0 w-8 text-center">
+                <span class="text-xs font-bold text-gray-400">#<%= i + 1 %></span>
+              </div>
+              <div class="flex-shrink-0">
+                <% if q.duration_ms > 1000 %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800"><%= format("%.0f", q.duration_ms) %>ms</span>
+                <% else %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-800"><%= format("%.0f", q.duration_ms) %>ms</span>
+                <% end %>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-mono text-gray-700 truncate"><%= truncate(q.sql.gsub(/\s+/, " "), length: 120) %></p>
+                <p class="text-xs text-gray-400 mt-0.5">
+                  <%= q.name || 'Anonymous' %> •
+                  <% ts = q.timestamp %>
+                  <%= if ts
+                        (ts.is_a?(Time) ? ts : Time.at(ts.to_f)).strftime("%H:%M:%S")
+                      end %>
+                </p>
+              </div>
+              <div class="flex-shrink-0 flex gap-1">
+                <%= link_to "View", query_path(q.id),
+                    class: "inline-flex items-center px-2 py-1 border border-blue-300 rounded text-xs text-blue-700 bg-white hover:bg-blue-50 transition-colors" %>
+                <%= link_to "Explain", explain_query_path(q.id),
+                    class: "inline-flex items-center px-2 py-1 border border-green-300 rounded text-xs text-green-700 bg-white hover:bg-green-50 transition-colors" %>
+              </div>
+            </div>
+          <% end %>
+          <% if slow_queries.length > 20 %>
+            <div class="px-6 py-3 text-center text-sm text-gray-500">
+              ... and <%= slow_queries.length - 20 %> more slow queries. Use the filter toolbar above to view all.
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
   <!-- Queries Table -->
   <div class="bg-white rounded-lg shadow overflow-hidden">
     <div class="px-6 py-4 border-b border-gray-200">
@@ -132,7 +236,7 @@
           <tbody class="bg-white">
             <% @query_groups.each_with_index do |group, group_index| %>
               <!-- Group Header -->
-              <tr class="bg-blue-50 border-t-2 border-blue-200">
+              <tr class="query-group-header bg-blue-50 border-t-2 border-blue-200" data-group-index="<%= group_index %>">
                 <td colspan="6" class="px-6 py-3">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
@@ -164,7 +268,7 @@
               
               <!-- Group Queries -->
               <% group[:queries].each_with_index do |q, index| %>
-                <tr class="<%= 'bg-red-50' if q.duration_ms > 1000 %> <%= 'bg-yellow-50' if q.duration_ms > 100 && q.duration_ms <= 1000 %> hover:bg-gray-50 transition-colors <%= 'border-b-2 border-gray-300' if index == group[:queries].length - 1 && group_index < @query_groups.length - 1 %>">
+                <tr class="query-row <%= 'bg-red-50' if q.duration_ms > 1000 %> <%= 'bg-yellow-50' if q.duration_ms > 100 && q.duration_ms <= 1000 %> hover:bg-gray-50 transition-colors <%= 'border-b-2 border-gray-300' if index == group[:queries].length - 1 && group_index < @query_groups.length - 1 %>" data-duration="<%= q.duration_ms %>" data-timestamp="<%= q.timestamp.is_a?(Time) ? q.timestamp.to_f : q.timestamp.to_f %>">
                   <td class="px-2 py-2 whitespace-nowrap text-sm text-gray-500">
                     <% ts = q.timestamp %>
                     <%= if ts
@@ -238,6 +342,7 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    // SQL tooltip positioning
     document.querySelectorAll('.sql-hover-trigger').forEach(function(el) {
       var tooltip = el.querySelector('.sql-tooltip');
       if (!tooltip) return;
@@ -254,5 +359,157 @@
         tooltip.classList.add('hidden');
       });
     });
+
+    // Query filter functionality
+    var activeFilter = 'all';
+    var customThreshold = 50;
+    var filterButtons = document.querySelectorAll('.filter-btn');
+    var customThresholdEl = document.getElementById('custom-threshold');
+    var thresholdInput = document.getElementById('threshold-input');
+    var filterSummary = document.getElementById('filter-summary');
+    var filterVisibleCount = document.getElementById('filter-visible-count');
+    var filterTotalCount = document.getElementById('filter-total-count');
+    var filterLabelText = document.getElementById('filter-label-text');
+    var clearFilterBtn = document.getElementById('clear-filter-btn');
+    var sortSelect = document.getElementById('sort-select');
+
+    function getThresholdForFilter(filter) {
+      switch(filter) {
+        case 'slow': return 100;
+        case 'very-slow': return 1000;
+        case 'custom': return parseFloat(thresholdInput.value) || 50;
+        default: return 0;
+      }
+    }
+
+    function applyFilter() {
+      var threshold = getThresholdForFilter(activeFilter);
+      var rows = document.querySelectorAll('.query-row');
+      var groupHeaders = document.querySelectorAll('.query-group-header');
+      var totalCount = rows.length;
+      var visibleCount = 0;
+
+      // Track which groups have visible queries
+      var groupVisibility = {};
+
+      rows.forEach(function(row) {
+        var duration = parseFloat(row.getAttribute('data-duration'));
+        var show = (activeFilter === 'all') || (duration >= threshold);
+        row.style.display = show ? '' : 'none';
+        if (show) {
+          visibleCount++;
+          // Find nearest group header
+          var prev = row.previousElementSibling;
+          while (prev && !prev.classList.contains('query-group-header')) {
+            prev = prev.previousElementSibling;
+          }
+          if (prev) {
+            var groupIdx = prev.getAttribute('data-group-index');
+            groupVisibility[groupIdx] = true;
+          }
+        }
+      });
+
+      // Show/hide group headers based on whether they have visible queries
+      groupHeaders.forEach(function(header) {
+        var groupIdx = header.getAttribute('data-group-index');
+        header.style.display = (activeFilter === 'all' || groupVisibility[groupIdx]) ? '' : 'none';
+      });
+
+      // Update summary
+      if (activeFilter === 'all') {
+        filterSummary.classList.add('hidden');
+      } else {
+        filterSummary.classList.remove('hidden');
+        filterVisibleCount.textContent = visibleCount;
+        filterTotalCount.textContent = totalCount;
+        var label = activeFilter === 'slow' ? ' (>100ms)' :
+                    activeFilter === 'very-slow' ? ' (>1s)' :
+                    ' (>' + threshold + 'ms)';
+        filterLabelText.textContent = label;
+      }
+
+      // Update button styles
+      filterButtons.forEach(function(btn) {
+        var f = btn.getAttribute('data-filter');
+        if (f === activeFilter) {
+          btn.className = 'filter-btn px-3 py-1.5 font-medium transition-colors ' +
+            (f === 'very-slow' ? 'bg-red-600 text-white' :
+             f === 'slow' ? 'bg-yellow-500 text-white' :
+             f === 'custom' ? 'bg-purple-600 text-white' :
+             'bg-blue-600 text-white');
+        } else {
+          btn.className = 'filter-btn px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50 border-l border-gray-300 transition-colors';
+        }
+      });
+
+      // Show/hide custom threshold input
+      if (activeFilter === 'custom') {
+        customThresholdEl.classList.remove('hidden');
+      } else {
+        customThresholdEl.classList.add('hidden');
+      }
+    }
+
+    filterButtons.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        activeFilter = this.getAttribute('data-filter');
+        applyFilter();
+      });
+    });
+
+    if (thresholdInput) {
+      thresholdInput.addEventListener('input', function() {
+        if (activeFilter === 'custom') {
+          applyFilter();
+        }
+      });
+    }
+
+    if (clearFilterBtn) {
+      clearFilterBtn.addEventListener('click', function() {
+        activeFilter = 'all';
+        applyFilter();
+      });
+    }
+
+    // Sort functionality
+    if (sortSelect) {
+      sortSelect.addEventListener('change', function() {
+        var tbody = document.querySelector('table tbody');
+        if (!tbody) return;
+
+        var sortBy = this.value;
+        var rows = Array.from(tbody.querySelectorAll('.query-row'));
+
+        if (sortBy === 'time') {
+          // Restore original order by reloading page section (re-sort by timestamp)
+          rows.sort(function(a, b) {
+            return parseFloat(b.getAttribute('data-timestamp')) - parseFloat(a.getAttribute('data-timestamp'));
+          });
+        } else if (sortBy === 'duration-desc') {
+          rows.sort(function(a, b) {
+            return parseFloat(b.getAttribute('data-duration')) - parseFloat(a.getAttribute('data-duration'));
+          });
+        } else if (sortBy === 'duration-asc') {
+          rows.sort(function(a, b) {
+            return parseFloat(a.getAttribute('data-duration')) - parseFloat(b.getAttribute('data-duration'));
+          });
+        }
+
+        // When sorting by duration, hide group headers and show flat list
+        var groupHeaders = tbody.querySelectorAll('.query-group-header');
+        if (sortBy !== 'time') {
+          groupHeaders.forEach(function(h) { h.style.display = 'none'; });
+          rows.forEach(function(row) { tbody.appendChild(row); });
+        } else {
+          // Restore: show group headers, re-order needs page refresh for proper grouping
+          // Simple approach: just reload
+          window.location.reload();
+        }
+
+        applyFilter();
+      });
+    }
   });
 </script>

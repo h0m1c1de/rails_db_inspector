@@ -26,9 +26,12 @@ module RailsDbInspector
         buffer_stats = collect_buffer_stats(root_plan["Plan"]) if @analyze
         recommendations = generate_recommendations(root_plan, index_analysis, buffer_stats)
 
-        summary_html = <<~HTML
+        # Build verdict card
+        summary_html = render_verdict(execution_time, total_cost, index_analysis, recommendations)
+
+        summary_html += <<~HTML
           <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Execution Summary</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Performance Metrics</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         HTML
 
@@ -80,6 +83,22 @@ module RailsDbInspector
             <div class="text-xs text-gray-400 mt-1">How many data lookups used an index vs scanning the whole table. Higher is better.</div>
           </div>
         HTML
+
+        # Add cardinality accuracy card (ANALYZE only)
+        if @analyze
+          accuracy = cardinality_accuracy(root_plan["Plan"])
+          if accuracy
+            accuracy_color = accuracy[:worst_ratio] <= 2.0 ? "border-green-400" : (accuracy[:worst_ratio] <= 10.0 ? "border-yellow-400" : "border-red-400")
+            accuracy_label = accuracy[:worst_ratio] <= 2.0 ? "Good" : (accuracy[:worst_ratio] <= 10.0 ? "Fair" : "Poor")
+            summary_html += <<~HTML
+              <div class="bg-white p-4 rounded-md border-l-4 #{accuracy_color}">
+                <div class="text-xs font-medium text-gray-500 uppercase tracking-wide">Cardinality Accuracy</div>
+                <div class="text-lg font-semibold text-gray-900 font-mono">#{accuracy_label}</div>
+                <div class="text-xs text-gray-400 mt-1">Worst estimate was #{accuracy[:worst_ratio]}x off#{accuracy[:worst_table] ? " on #{accuracy[:worst_table]}" : ""}. Run ANALYZE on tables with poor estimates.</div>
+              </div>
+            HTML
+          end
+        end
 
         # Add cache hit ratio if we have buffer stats
         if buffer_stats && buffer_stats[:total_blocks] > 0
@@ -234,6 +253,70 @@ module RailsDbInspector
 
       private
 
+      def render_verdict(execution_time, total_cost, index_analysis, recommendations)
+        critical_count = recommendations.count { |r| r[:severity] == :critical }
+        warning_count = recommendations.count { |r| r[:severity] == :warning }
+        all_indexed = index_analysis[:total_scans] > 0 && index_analysis[:index_scans] == index_analysis[:total_scans]
+
+        if @analyze && execution_time
+          if execution_time > 1000 || critical_count > 0
+            verdict = :bad
+            icon = "🔴"
+            title = "This query needs attention"
+            desc = []
+            desc << "Took #{execution_time}ms to execute" if execution_time > 1000
+            desc << "#{critical_count} critical issue#{"s" if critical_count != 1}" if critical_count > 0
+            desc << "No indexes used" unless all_indexed || index_analysis[:total_scans] == 0
+            description = desc.join(" · ") + ". See the recommendations below for specific fixes."
+          elsif execution_time > 100 || warning_count > 0
+            verdict = :ok
+            icon = "🟡"
+            title = "Room for improvement"
+            desc = []
+            desc << "#{execution_time}ms execution time (aim for <50ms in web requests)" if execution_time > 100
+            desc << "#{warning_count} suggestion#{"s" if warning_count != 1}" if warning_count > 0
+            description = desc.join(" · ") + ". Review the recommendations below."
+          else
+            verdict = :good
+            icon = "🟢"
+            title = "This query looks good"
+            description = "Executed in #{execution_time}ms"
+            description += ", all scans use indexes" if all_indexed && index_analysis[:total_scans] > 0
+            description += ". No critical issues found."
+          end
+        else
+          # EXPLAIN without ANALYZE — evaluate based on cost and plan shape
+          if critical_count > 0
+            verdict = :bad
+            icon = "🔴"
+            title = "Potential problems detected"
+            description = "#{critical_count + warning_count} issue#{"s" if critical_count + warning_count != 1} found in the estimated plan. Run with ANALYZE to confirm with real metrics."
+          elsif warning_count > 0 || !all_indexed
+            verdict = :ok
+            icon = "🟡"
+            title = "Some concerns in the estimated plan"
+            description = "The planner's strategy has #{warning_count} suggestion#{"s" if warning_count != 1}. Run with ANALYZE to see actual performance."
+          else
+            verdict = :good
+            icon = "🟢"
+            title = "Estimated plan looks efficient"
+            description = "The planner chose index-based access"
+            description += " with an estimated cost of #{total_cost}" if total_cost
+            description += ". Run with ANALYZE to verify with real numbers."
+          end
+        end
+
+        <<~HTML
+          <div class="verdict-card verdict-#{verdict}" style="margin-bottom: 24px;">
+            <span class="verdict-icon">#{icon}</span>
+            <div class="verdict-body">
+              <h3>#{ERB::Util.html_escape(title)}</h3>
+              <p>#{ERB::Util.html_escape(description)}</p>
+            </div>
+          </div>
+        HTML
+      end
+
       def render_node(node, depth)
         node_id = "node_#{SecureRandom.hex(6)}"
         warnings = detect_warnings(node)
@@ -371,7 +454,30 @@ module RailsDbInspector
           details << [ "Cost", "#{node["Startup Cost"]}..#{node["Total Cost"]}", "Startup cost (before first row) to total cost (all rows). Arbitrary units — compare relative to other nodes." ]
         end
 
+        # Cardinality metrics — estimated rows and row width
+        if node["Plan Rows"]
+          details << [ "Estimated Rows (Cardinality)", number_with_delimiter(node["Plan Rows"]), "The planner's estimate of how many rows this node will produce. This is the estimated cardinality — a key factor in plan selection." ]
+        end
+
+        if node["Plan Width"]
+          details << [ "Estimated Row Width", "#{node["Plan Width"]} bytes", "Average width of each output row in bytes. Combined with cardinality (row count), this determines memory and I/O cost estimates." ]
+        end
+
         if @analyze
+          if node["Actual Rows"]
+            details << [ "Actual Rows", number_with_delimiter(node["Actual Rows"]), "The real number of rows returned by this node. Compare with Estimated Rows to judge planner accuracy." ]
+          end
+
+          if node["Actual Rows"] && node["Plan Rows"] && node["Plan Rows"] > 0
+            ratio = (node["Actual Rows"].to_f / node["Plan Rows"]).round(2)
+            accuracy = if ratio == 1.0 then "exact match"
+                       elsif ratio > 0.5 && ratio < 2.0 then "good (within 2x)"
+                       elsif ratio > 0.1 && ratio < 10 then "off (#{ratio}x)"
+                       else "poor (#{ratio}x) — consider ANALYZE on this table"
+                       end
+            details << [ "Estimate Accuracy", accuracy, "How close the planner's cardinality estimate was to reality. If poor, run ANALYZE to update table statistics." ]
+          end
+
           if node["Actual Startup Time"] && node["Actual Total Time"]
             details << [ "Actual Time", "#{node["Actual Startup Time"]}..#{node["Actual Total Time"]} ms", "Real time: from start until all rows returned for this node." ]
           end
@@ -518,6 +624,26 @@ module RailsDbInspector
 
       def has_children?(node)
         node["Plans"] && node["Plans"].any?
+      end
+
+      def cardinality_accuracy(plan_node, result = nil)
+        result ||= { worst_ratio: 1.0, worst_table: nil }
+
+        if plan_node["Actual Rows"] && plan_node["Plan Rows"] && plan_node["Plan Rows"] > 0
+          ratio = plan_node["Actual Rows"].to_f / plan_node["Plan Rows"]
+          ratio = 1.0 / ratio if ratio > 0 && ratio < 1.0  # normalize so ratio >= 1
+          ratio = ratio.round(1)
+          if ratio > result[:worst_ratio]
+            result[:worst_ratio] = ratio
+            result[:worst_table] = plan_node["Relation Name"]
+          end
+        end
+
+        if plan_node["Plans"]
+          plan_node["Plans"].each { |child| cardinality_accuracy(child, result) }
+        end
+
+        result[:worst_ratio] > 1.0 ? result : nil
       end
 
       def find_hotspots(plan_node, hotspots = [])

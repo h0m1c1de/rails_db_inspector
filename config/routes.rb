@@ -14,4 +14,8 @@ RailsDbInspector::Engine.routes.draw do
   end
 
   get "schema", to: "schema#index", as: :schema_index
+  post "schema/analyze_table", to: "schema#analyze_table", as: :analyze_table
+
+  get "console", to: "console#index", as: :console_index
+  post "console/execute", to: "console#execute", as: :console_execute
 end

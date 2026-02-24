@@ -140,5 +140,37 @@ RSpec.describe RailsDbInspector::DevWidgetMiddleware do
 
       mw.call(env)
     end
+
+    context "when route.app does not respond_to?(:app)" do
+      before do
+        route_app = double("route_app")
+        allow(route_app).to receive(:respond_to?).with(:app).and_return(false)
+        path_spec = double("path_spec", to_s: "/other(.:format)")
+        route = double("route", app: route_app, path: double(spec: path_spec))
+        routes = double("routes", routes: [ route ])
+        app = double("rails_app", routes: routes)
+        allow(Rails).to receive(:application).and_return(app)
+      end
+
+      it "does not inject widget when route app has no :app method" do
+        status, _headers, body = middleware.call(env)
+
+        expect(body.first).not_to include("rdi-widget")
+      end
+    end
+
+    context "when mount_path is nil and PATH_INFO starts with something" do
+      before do
+        routes = double("routes", routes: [])
+        app = double("rails_app", routes: routes)
+        allow(Rails).to receive(:application).and_return(app)
+      end
+
+      it "injectable? returns false for nil mount_path on engine's pages check" do
+        # With no mount path found, the injectable? check for PATH_INFO.start_with?(mount_path) is skipped
+        status, _headers, body = middleware.call(env)
+        expect(body.first).not_to include("rdi-widget")
+      end
+    end
   end
 end

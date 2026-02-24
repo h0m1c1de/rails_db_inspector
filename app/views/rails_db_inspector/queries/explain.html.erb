@@ -1,3 +1,70 @@
+<% content_for :head do %>
+<style>
+  .explain-section { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+  .explain-section + .explain-section { margin-top: 24px; }
+  .explain-section-header { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+  .explain-section-header h2 { font-size: 16px; font-weight: 600; color: #111827; margin: 0; }
+  .explain-section-header p { font-size: 13px; color: #6b7280; margin: 4px 0 0; }
+  .explain-section-body { padding: 24px; }
+
+  /* Verdict card */
+  .verdict-card { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-radius: 8px; border: 2px solid; }
+  .verdict-card.verdict-good { border-color: #86efac; background: #f0fdf4; }
+  .verdict-card.verdict-ok { border-color: #fde68a; background: #fffbeb; }
+  .verdict-card.verdict-bad { border-color: #fca5a5; background: #fef2f2; }
+  .verdict-icon { font-size: 32px; flex-shrink: 0; }
+  .verdict-body h3 { font-size: 16px; font-weight: 700; margin: 0; }
+  .verdict-card.verdict-good .verdict-body h3 { color: #166534; }
+  .verdict-card.verdict-ok .verdict-body h3 { color: #92400e; }
+  .verdict-card.verdict-bad .verdict-body h3 { color: #991b1b; }
+  .verdict-body p { font-size: 13px; color: #4b5563; margin: 4px 0 0; }
+
+  /* Guide banner */
+  .explain-guide { padding: 16px 24px; border-radius: 8px; border: 1px solid #dbeafe; background: #eff6ff; margin-bottom: 24px; }
+  .explain-guide summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #1e40af; list-style: none; display: flex; align-items: center; gap: 6px; }
+  .explain-guide summary::-webkit-details-marker { display: none; }
+  .explain-guide summary::before { content: '▶'; font-size: 9px; transition: transform 0.15s; }
+  .explain-guide[open] summary::before { transform: rotate(90deg); }
+  .explain-guide .guide-content { margin-top: 12px; font-size: 13px; color: #1e3a5f; line-height: 1.6; }
+  .explain-guide .guide-content dt { font-weight: 600; color: #1e40af; margin-top: 8px; }
+  .explain-guide .guide-content dd { margin: 2px 0 0 16px; }
+
+  /* Step indicator */
+  .explain-steps { display: flex; gap: 0; margin-bottom: 24px; overflow: hidden; border-radius: 8px; border: 1px solid #e5e7eb; }
+  .explain-step { flex: 1; padding: 12px 16px; background: #f9fafb; text-align: center; border-right: 1px solid #e5e7eb; position: relative; }
+  .explain-step:last-child { border-right: none; }
+  .explain-step.active { background: #eff6ff; }
+  .explain-step .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #d1d5db; color: #fff; font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+  .explain-step.active .step-num { background: #3b82f6; }
+  .explain-step .step-label { display: block; font-size: 11px; font-weight: 500; color: #6b7280; }
+  .explain-step.active .step-label { color: #1d4ed8; font-weight: 600; }
+
+  /* MySQL/SQLite table tooltip */
+  .explain-col-header { position: relative; cursor: help; }
+  .explain-col-header .col-tip { display: none; position: absolute; top: 100%; left: 0; z-index: 10; background: #1f2937; color: #f3f4f6; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: normal; padding: 8px 12px; border-radius: 6px; width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); white-space: normal; line-height: 1.4; }
+  .explain-col-header:hover .col-tip { display: block; }
+
+  /* Glossary */
+  .glossary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .glossary-item { padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fafbfc; }
+  .glossary-item .gl-term { font-family: ui-monospace, monospace; font-size: 12px; font-weight: 600; color: #374151; }
+  .glossary-item .gl-desc { font-size: 11px; color: #6b7280; margin-top: 2px; line-height: 1.4; }
+  .glossary-item.gl-good { border-left: 3px solid #22c55e; }
+  .glossary-item.gl-warn { border-left: 3px solid #f59e0b; }
+  .glossary-item.gl-bad { border-left: 3px solid #ef4444; }
+
+  /* Action buttons in header */
+  .explain-actions { display: flex; gap: 8px; align-items: center; }
+  .explain-actions a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; text-decoration: none; transition: background 0.15s; }
+  .explain-actions .btn-outline { border: 1px solid #d1d5db; color: #374151; background: #fff; }
+  .explain-actions .btn-outline:hover { background: #f3f4f6; }
+  .explain-actions .btn-primary { border: 1px solid transparent; color: #fff; background: #2563eb; }
+  .explain-actions .btn-primary:hover { background: #1d4ed8; }
+  .explain-actions .btn-success { border: 1px solid transparent; color: #fff; background: #16a34a; }
+  .explain-actions .btn-success:hover { background: #15803d; }
+</style>
+<% end %>
+
 <% content_for :scripts do %>
   <script>
     // Plan Tree JavaScript
@@ -57,72 +124,405 @@
         }
       }
     });
+
+    function toggleGlossary() {
+      var el = document.getElementById('node-glossary');
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
   </script>
 <% end %>
 
 <div class="space-y-6">
-  <!-- Header -->
-  <div class="flex items-center justify-between">
+  <!-- Header with actions -->
+  <div class="flex items-center justify-between flex-wrap gap-4">
     <div>
-      <h1 class="text-3xl font-bold text-gray-900">Query Execution Plan</h1>
-      <p class="mt-2 text-gray-600">Detailed analysis of query performance and execution strategy</p>
+      <h1 class="text-3xl font-bold text-gray-900">
+        <% if @explain[:analyze] %>
+          EXPLAIN ANALYZE
+        <% else %>
+          EXPLAIN
+        <% end %>
+      </h1>
+      <p class="mt-1 text-gray-500 text-sm">
+        <% if @explain[:analyze] %>
+          The query was <strong>actually executed</strong> and the real timing, row counts, and buffer usage are shown below.
+        <% else %>
+          This is the database's <strong>estimated plan</strong> — the query was <em>not</em> executed. Row counts and costs are predictions.
+        <% end %>
+      </p>
     </div>
-    <div>
-      <%= link_to "← Back to Query", query_path(@query.id), 
-          class: "inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" %>
+    <div class="explain-actions">
+      <%= link_to "← Back to Query", query_path(@query.id), class: "btn-outline" %>
+      <% unless @explain[:analyze] %>
+        <%= link_to "Run with ANALYZE →", explain_query_path(@query.id, analyze: true), class: "btn-success" %>
+      <% end %>
     </div>
   </div>
 
-  <!-- SQL Query -->
-  <div class="bg-white rounded-lg shadow overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-      <h2 class="text-lg font-medium text-gray-900">SQL Query</h2>
+  <!-- Reading guide -->
+  <details class="explain-guide">
+    <summary>📖 How to read this page</summary>
+    <div class="guide-content">
+      <% if @explain[:analyze] %>
+        <p>EXPLAIN ANALYZE <strong>actually runs</strong> the query against your database, so the numbers below are real measurements — not estimates.</p>
+        <dl>
+          <dt>Execution Time</dt>
+          <dd>Wall-clock time to run the query from start to finish. Under 50 ms is ideal for web requests.</dd>
+          <dt>Actual Rows</dt>
+          <dd>How many rows each step really produced. Compare with "estimated" to see if the planner's statistics are accurate.</dd>
+          <dt>Buffers (hit / read)</dt>
+          <dd>"Hit" pages were already cached in RAM. "Read" pages had to be loaded from disk — the more reads, the slower the query under cold cache.</dd>
+          <dt>Loops</dt>
+          <dd>Some operations (e.g. Nested Loop inner side) run once <em>per row</em> from their parent. Multiply timing × loops to get the real cost.</dd>
+        </dl>
+      <% else %>
+        <p>EXPLAIN shows the database's <strong>planned strategy</strong> without running the query. All numbers are estimates derived from table statistics.</p>
+        <dl>
+          <dt>Cost</dt>
+          <dd>Arbitrary units measuring estimated I/O + CPU work. The first number is startup cost (before the first row); the second is total cost. Compare costs between different plans or nodes.</dd>
+          <dt>Rows</dt>
+          <dd>The planner's estimate of how many rows each step will produce. If these are wrong, the planner may choose a bad strategy — run <code>ANALYZE table_name</code> to update statistics.</dd>
+          <dt>Width</dt>
+          <dd>Average estimated size (bytes) of each output row. Wider rows use more memory for sorts and hash joins.</dd>
+        </dl>
+        <p style="margin-top: 8px;"><strong>Tip:</strong> Click <em>"Run with ANALYZE"</em> to see real numbers. The query will actually execute, so avoid this on expensive writes in production.</p>
+      <% end %>
     </div>
-    <div class="p-6">
+  </details>
+
+  <!-- Visual steps showing the reading flow -->
+  <div class="explain-steps">
+    <div class="explain-step active">
+      <span class="step-num">1</span>
+      <span class="step-label">SQL Query</span>
+    </div>
+    <div class="explain-step active">
+      <span class="step-num">2</span>
+      <span class="step-label"><%= @explain[:analyze] ? "Measured Performance" : "Estimated Cost" %></span>
+    </div>
+    <div class="explain-step active">
+      <span class="step-num">3</span>
+      <span class="step-label">Execution Tree</span>
+    </div>
+    <div class="explain-step active">
+      <span class="step-num">4</span>
+      <span class="step-label">Recommendations</span>
+    </div>
+  </div>
+
+  <!-- Step 1: SQL Query -->
+  <div class="explain-section">
+    <div class="explain-section-header">
+      <h2>① The Query</h2>
+      <p>The SQL statement that was sent to the database.</p>
+    </div>
+    <div class="explain-section-body">
       <div class="bg-gray-900 rounded-md p-4 overflow-x-auto">
         <pre class="text-green-400 text-sm font-mono whitespace-pre-wrap"><%= @query.sql %></pre>
+      </div>
+      <div class="mt-3 text-xs text-gray-400">
+        Duration when captured: <strong class="<%= @query.duration_ms > 1000 ? 'text-red-500' : @query.duration_ms > 100 ? 'text-yellow-600' : 'text-green-600' %>"><%= format("%.1f", @query.duration_ms) %> ms</strong>
+        · Query name: <strong><%= @query.name || "Anonymous" %></strong>
       </div>
     </div>
   </div>
 
-  <!-- Execution Plan -->
-  <div class="bg-white rounded-lg shadow overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-      <h2 class="text-lg font-medium text-gray-900">Execution Plan</h2>
-      <p class="mt-1 text-sm text-gray-500">
-        <% if @explain[:analyze] %>
-          Live execution analysis with actual timing and row counts
-        <% else %>
-          Estimated execution plan (run with ANALYZE for actual metrics)
+  <!-- Step 2-4: Execution Plan -->
+  <div class="explain-section">
+    <div class="explain-section-header">
+      <h2>② – ④ Execution Plan, Analysis &amp; Recommendations</h2>
+      <p>
+        <% if @explain[:adapter] == "postgres" %>
+          The PostgreSQL query planner chose the strategy below. Read from the innermost (deepest) node outward — data flows up the tree.
+        <% elsif @explain[:adapter] == "mysql" %>
+          MySQL's optimizer produced the table access plan below. Each row represents one table access in the join order.
+        <% elsif @explain[:adapter] == "sqlite" %>
+          SQLite's query planner produced the steps below. Each row is one operation in the execution pipeline.
         <% end %>
       </p>
     </div>
-    <div class="p-6">
+    <div class="explain-section-body">
       <% if @explain[:adapter] == "postgres" %>
         <%= render_postgres_plan(@explain) %>
       <% else %>
-        <!-- MySQL/Other adapters -->
+        <%# MySQL / SQLite tabular output with column explanations %>
+        <% column_tips = {
+          "id" => "The SELECT identifier. Each SELECT in the query gets a unique ID. Subqueries and UNIONs get higher numbers.",
+          "select_type" => "The type of SELECT: SIMPLE (no subqueries/unions), PRIMARY (outermost), SUBQUERY, DERIVED (subquery in FROM), UNION, etc.",
+          "table" => "The table this row is reading from. May show <derivedN> for subqueries or <unionN,M> for unions.",
+          "partitions" => "Which partitions are accessed. NULL means no partitioning or all partitions.",
+          "type" => "The join/access type — most important column! From best to worst: system > const > eq_ref > ref > range > index > ALL. 'ALL' means full table scan.",
+          "possible_keys" => "Indexes MySQL considered using. NULL means no relevant index exists.",
+          "key" => "The index MySQL actually chose. NULL means no index was used — this is often a problem.",
+          "key_len" => "How many bytes of the index are used. Shorter = less of a composite index is utilized.",
+          "ref" => "What is compared against the index: a constant, a column from another table, or NULL.",
+          "rows" => "MySQL's estimate of rows to examine (cardinality). Lower is better. Multiply across joined tables for total work.",
+          "filtered" => "Percentage of rows remaining after the WHERE clause. 100% = no filtering; 10% = 90% of rows discarded. Effective cardinality = rows × filtered / 100.",
+          "Extra" => "Additional info: 'Using index' (good — covering index), 'Using filesort' (bad — extra sort pass), 'Using temporary' (bad — temp table needed), 'Using where' (filter applied after read).",
+          "parent" => "The parent operation in SQLite's query plan tree.",
+          "notused" => "Reserved field, not currently used by SQLite.",
+          "detail" => "Human-readable description of what this step does (e.g., SCAN TABLE, SEARCH TABLE USING INDEX)."
+        } %>
+
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <% @explain[:columns].each do |c| %>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= c %></th>
+                <% (@explain[:columns] || []).each do |c| %>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider explain-col-header">
+                    <%= c %>
+                    <% if column_tips[c] %>
+                      <span class="col-tip"><%= column_tips[c] %></span>
+                    <% end %>
+                  </th>
                 <% end %>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <% @explain[:rows].each_with_index do |row, index| %>
+              <% (@explain[:rows] || []).each_with_index do |row, index| %>
                 <tr class="<%= 'bg-gray-50' if index.even? %>">
-                  <% row.each do |cell| %>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono"><%= cell %></td>
+                  <% row.each_with_index do |cell, ci| %>
+                    <%
+                      col_name = (@explain[:columns] || [])[ci]
+                      cell_class = ""
+                      if col_name == "type"
+                        case cell.to_s.downcase
+                        when "all" then cell_class = "text-red-600 font-bold"
+                        when "index" then cell_class = "text-yellow-600 font-semibold"
+                        when "range" then cell_class = "text-blue-600"
+                        when "ref", "eq_ref", "const", "system" then cell_class = "text-green-600 font-semibold"
+                        end
+                      elsif col_name == "key" && cell.to_s.strip.empty?
+                        cell_class = "text-red-500 italic"
+                      elsif col_name == "Extra"
+                        cell_class = "text-red-600 font-medium" if cell.to_s =~ /filesort|temporary/i
+                        cell_class = "text-green-600" if cell.to_s =~ /Using index/i && cell.to_s !~ /condition/i
+                      elsif col_name == "detail"
+                        cell_class = "text-green-600" if cell.to_s =~ /USING.*INDEX/i
+                        cell_class = "text-yellow-600" if cell.to_s =~ /SCAN TABLE/i
+                      end
+                    %>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-mono <%= cell_class %>">
+                      <%= cell.to_s.strip.empty? ? "—" : cell %>
+                    </td>
                   <% end %>
                 </tr>
               <% end %>
             </tbody>
           </table>
         </div>
+
+        <%# Quick interpretation for MySQL/SQLite %>
+        <div class="mt-6 space-y-3">
+          <% (@explain[:rows] || []).each_with_index do |row, ri| %>
+            <%
+              cols = @explain[:columns] || []
+              row_hash = {}
+              cols.each_with_index { |c, i| row_hash[c] = row[i] }
+            %>
+
+            <% if row_hash["type"] && row_hash["type"].to_s.downcase == "all" %>
+              <div class="bg-red-50 border border-red-200 rounded-md p-3">
+                <p class="text-sm text-red-700">
+                  <strong>⚠ Full table scan</strong> on <code><%= row_hash["table"] %></code> — MySQL is reading every row.
+                  <% if row_hash["possible_keys"].to_s.strip.empty? %>
+                    No usable index exists. Add an index on the columns in your WHERE or JOIN clause.
+                  <% else %>
+                    Possible indexes (<code><%= row_hash["possible_keys"] %></code>) exist but weren't chosen. Check if the WHERE clause prevents index use (e.g., functions on columns, OR conditions, or very low selectivity).
+                  <% end %>
+                </p>
+              </div>
+            <% end %>
+
+            <% if row_hash["Extra"].to_s =~ /Using filesort/i %>
+              <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <p class="text-sm text-yellow-700">
+                  <strong>⚠ Filesort</strong> on <code><%= row_hash["table"] %></code> — MySQL needs an extra sorting pass.
+                  Add an index that covers both the WHERE and ORDER BY columns to eliminate this.
+                </p>
+              </div>
+            <% end %>
+
+            <% if row_hash["Extra"].to_s =~ /Using temporary/i %>
+              <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <p class="text-sm text-yellow-700">
+                  <strong>⚠ Temporary table</strong> — MySQL created an intermediate temporary table for GROUP BY or DISTINCT.
+                  This uses extra memory and can spill to disk on large result sets.
+                </p>
+              </div>
+            <% end %>
+
+            <% if row_hash["detail"].to_s =~ /SCAN TABLE/i %>
+              <%
+                sqlite_table_match = row_hash["detail"].to_s.match(/SCAN TABLE (\w+)/i)
+                sqlite_table_name = sqlite_table_match ? sqlite_table_match[1] : nil
+                sqlite_stats = @explain[:table_stats] || {}
+                sqlite_tstat = sqlite_table_name ? sqlite_stats[sqlite_table_name] : nil
+              %>
+              <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <p class="text-sm text-yellow-700">
+                  <strong>⚠ Full table scan</strong> on <code><%= sqlite_table_name || 'table' %></code> — SQLite is scanning the entire table.
+                  <% if sqlite_tstat && sqlite_tstat[:row_count] %>
+                    This table has <strong><%= number_with_delimiter(sqlite_tstat[:row_count]) %></strong> rows.
+                    <% if sqlite_tstat[:row_count] > 1000 %>
+                      Scanning all rows is expensive at this size.
+                    <% end %>
+                  <% end %>
+                  Consider adding an index on the columns used in WHERE or JOIN.
+                </p>
+              </div>
+              <% if sqlite_tstat && sqlite_tstat[:row_count] && sqlite_tstat[:row_count] > 100 %>
+                <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <p class="text-sm text-blue-700">
+                    <strong>📊 Cardinality:</strong> <code><%= sqlite_table_name %></code> contains <strong><%= number_with_delimiter(sqlite_tstat[:row_count]) %></strong> rows.
+                    A full scan reads every row — adding an index could reduce this to very few lookups.
+                    <% if sqlite_tstat[:row_count] > 10000 %>
+                      <span class="text-blue-900 font-semibold">With <%= number_with_delimiter(sqlite_tstat[:row_count]) %> rows, an index is strongly recommended.</span>
+                    <% end %>
+                  </p>
+                </div>
+              <% end %>
+            <% end %>
+
+            <%# SQLite index search cardinality %>
+            <% if row_hash["detail"].to_s =~ /SEARCH TABLE/i %>
+              <%
+                sqlite_search_match = row_hash["detail"].to_s.match(/SEARCH TABLE (\w+)/i)
+                sqlite_search_name = sqlite_search_match ? sqlite_search_match[1] : nil
+                sqlite_search_stats = (@explain[:table_stats] || {})[sqlite_search_name]
+              %>
+              <% if sqlite_search_stats && sqlite_search_stats[:row_count] && sqlite_search_stats[:row_count] > 100 %>
+                <div class="bg-green-50 border border-green-200 rounded-md p-3">
+                  <p class="text-sm text-green-700">
+                    <strong>✅ Index lookup</strong> on <code><%= sqlite_search_name %></code> (<%= number_with_delimiter(sqlite_search_stats[:row_count]) %> total rows).
+                    Using an index avoids scanning all rows — only matching rows are read.
+                  </p>
+                </div>
+              <% end %>
+            <% end %>
+
+            <%# Cardinality interpretation %>
+            <% if row_hash["rows"] && row_hash["rows"].to_i > 1000 && row_hash["filtered"] %>
+              <% effective_rows = (row_hash["rows"].to_i * row_hash["filtered"].to_f / 100).round %>
+              <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p class="text-sm text-blue-700">
+                  <strong>📊 Cardinality:</strong> <code><%= row_hash["table"] %></code> — estimated <strong><%= number_with_delimiter(row_hash["rows"].to_i) %></strong> rows examined,
+                  <strong><%= row_hash["filtered"] %>%</strong> pass the filter → <strong><%= number_with_delimiter(effective_rows) %></strong> effective rows.
+                  <% if effective_rows < row_hash["rows"].to_i / 10 %>
+                    <span class="text-blue-900 font-semibold">Low selectivity — an index on the WHERE columns could reduce the rows examined dramatically.</span>
+                  <% end %>
+                </p>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
       <% end %>
+    </div>
+  </div>
+
+  <%# Node type glossary — educational reference %>
+  <div class="explain-section">
+    <div class="explain-section-header" style="cursor: pointer;" onclick="toggleGlossary()">
+      <h2>📚 Node Type Glossary <span style="font-size: 12px; color: #9ca3af; font-weight: 400;">(click to expand)</span></h2>
+      <p>What each operation in the execution plan means, and whether it's good or bad.</p>
+    </div>
+    <div class="explain-section-body" id="node-glossary" style="display: none;">
+      <% if @explain[:adapter] == "postgres" %>
+        <div class="glossary-grid">
+          <div class="glossary-item gl-good"><span class="gl-term">Index Scan</span><div class="gl-desc">Walks a B-tree index to find matching rows, then fetches full rows from the table. Fast for selective queries.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">Index Only Scan</span><div class="gl-desc">Reads data directly from the index without touching the table. The fastest scan type — only works when all needed columns are in the index (covering index).</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">Bitmap Index Scan</span><div class="gl-desc">Scans the index and builds a bitmap of matching pages. Used when too many rows match for a plain index scan but too few for a seq scan. Often paired with Bitmap Heap Scan.</div></div>
+          <div class="glossary-item gl-warn"><span class="gl-term">Bitmap Heap Scan</span><div class="gl-desc">Reads table pages identified by a bitmap. Efficient for medium selectivity, but if the bitmap becomes "lossy" (too large), it rechecks rows — watch for high recheck counts.</div></div>
+          <div class="glossary-item gl-bad"><span class="gl-term">Seq Scan</span><div class="gl-desc">Reads every row in the table sequentially. Fine for small tables or when you need most rows. <strong>Bad</strong> for large tables with selective filters — usually means a missing index.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">Nested Loop</span><div class="gl-desc">For each row from the outer side, looks up matching rows on the inner side. Great when the inner side uses an index. Watch out for high loop counts without index lookups.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">Hash Join</span><div class="gl-desc">Builds a hash table from one side, then probes it with the other. Efficient for equality joins on large datasets. Uses memory proportional to the smaller table.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">Merge Join</span><div class="gl-desc">Merges two pre-sorted inputs. Very efficient when both sides are already sorted (e.g., by an index). No random I/O.</div></div>
+          <div class="glossary-item gl-warn"><span class="gl-term">Sort</span><div class="gl-desc">Sorts rows in memory (or on disk if too large). An index on ORDER BY columns can eliminate the sort entirely.</div></div>
+          <div class="glossary-item gl-warn"><span class="gl-term">Hash / HashAggregate</span><div class="gl-desc">Builds a hash table for GROUP BY or DISTINCT. Uses memory — if it exceeds work_mem, it spills to disk (batches).</div></div>
+          <div class="glossary-item gl-warn"><span class="gl-term">Materialize</span><div class="gl-desc">Stores a subplan's output in memory (or a temp file) so it can be re-scanned. Appears when the inner side of a nested loop has no index.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">Append</span><div class="gl-desc">Concatenates results from multiple sub-plans. Common with partitioned tables or UNION ALL queries.</div></div>
+        </div>
+      <% elsif @explain[:adapter] == "mysql" %>
+        <div class="glossary-grid">
+          <div class="glossary-item gl-good"><span class="gl-term">const / system</span><div class="gl-desc">At most one matching row (primary key or unique index lookup). The fastest possible access.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">eq_ref</span><div class="gl-desc">One row read from this table for each row from the previous table. Uses a unique index. Ideal for joins.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">ref</span><div class="gl-desc">All rows with matching index values are read. Good — uses a non-unique index.</div></div>
+          <div class="glossary-item gl-warn"><span class="gl-term">range</span><div class="gl-desc">A range of rows retrieved using an index (e.g., BETWEEN, &gt;, &lt;, IN). Generally acceptable.</div></div>
+          <div class="glossary-item gl-warn"><span class="gl-term">index</span><div class="gl-desc">Full index scan — reads every entry in the index. Better than ALL but still reads a lot of data.</div></div>
+          <div class="glossary-item gl-bad"><span class="gl-term">ALL</span><div class="gl-desc">Full table scan. Reads every row. Almost always bad for large tables — add an index.</div></div>
+        </div>
+      <% else %>
+        <div class="glossary-grid">
+          <div class="glossary-item gl-bad"><span class="gl-term">SCAN TABLE</span><div class="gl-desc">Reads every row in the table. For large tables add an index on the filtered columns.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">SEARCH TABLE USING INDEX</span><div class="gl-desc">Uses an index to find matching rows quickly. This is what you want to see.</div></div>
+          <div class="glossary-item gl-good"><span class="gl-term">SEARCH TABLE USING COVERING INDEX</span><div class="gl-desc">All needed data is in the index — no need to read the table at all. The fastest path.</div></div>
+          <div class="glossary-item gl-warn"><span class="gl-term">USE TEMP B-TREE FOR ORDER BY</span><div class="gl-desc">SQLite builds a temporary B-tree to sort results. An index on the ORDER BY columns would eliminate this.</div></div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- What to do next -->
+  <div class="explain-section">
+    <div class="explain-section-header">
+      <h2>🚀 What to Do Next</h2>
+    </div>
+    <div class="explain-section-body">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <% if !@explain[:analyze] %>
+          <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h4 class="font-semibold text-green-800 mb-1">Run with ANALYZE</h4>
+            <p class="text-green-700">You're looking at estimates. Click <strong>"Run with ANALYZE"</strong> above to see real execution times, actual row counts, and buffer statistics.</p>
+          </div>
+        <% end %>
+        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 class="font-semibold text-blue-800 mb-1">Check for Seq Scans</h4>
+          <p class="text-blue-700">Look for <span class="bg-red-100 text-red-700 px-1 rounded text-xs font-mono">Seq Scan</span> or <span class="bg-red-100 text-red-700 px-1 rounded text-xs font-mono">ALL</span> on large tables. Adding an index on the filtered columns usually fixes this.</p>
+        </div>
+        <div class="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <h4 class="font-semibold text-purple-800 mb-1">Update Statistics</h4>
+          <p class="text-purple-700 mb-2">If estimated vs actual row counts differ wildly, refresh the planner's statistics so it makes better plan choices.</p>
+          <div id="analyze-controls">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <select id="analyze-table-name" class="px-3 py-1.5 border border-purple-300 rounded text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-purple-400" style="width:200px;">
+                <option value="">Select a table…</option>
+                <% (@tables || []).each do |t| %>
+                  <option value="<%= t %>"><%= t %></option>
+                <% end %>
+              </select>
+              <button onclick="runAnalyzeTable()" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded hover:bg-purple-700 transition-colors">Run ANALYZE</button>
+            </div>
+            <div id="analyze-result" class="mt-2 text-sm" style="display:none;"></div>
+          </div>
+          <script>
+            function runAnalyzeTable() {
+              var table = document.getElementById('analyze-table-name').value.trim();
+              if (!table) { alert('Select a table first'); return; }
+              var resultEl = document.getElementById('analyze-result');
+              resultEl.style.display = 'block';
+              resultEl.innerHTML = '<span class="text-purple-600">Running ANALYZE on ' + table + '...</span>';
+              var csrfToken = document.querySelector('meta[name=csrf-token]');
+              fetch('<%= analyze_table_path %>', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken ? csrfToken.content : '' },
+                body: JSON.stringify({ table: table })
+              }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.success) {
+                  resultEl.innerHTML = '<span class="text-green-700 font-medium">\u2705 ' + data.message + '</span>';
+                } else {
+                  resultEl.innerHTML = '<span class="text-red-600">\u274C ' + (data.error || 'Unknown error') + '</span>';
+                }
+              }).catch(function(err) {
+                resultEl.innerHTML = '<span class="text-red-600">\u274C Request failed: ' + err.message + '</span>';
+              });
+            }
+          </script>
+        </div>
+        <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h4 class="font-semibold text-yellow-800 mb-1">Check the Schema Page</h4>
+          <p class="text-yellow-700">Visit the <strong>Schema</strong> tab to see missing index suggestions, redundant indexes, and other structural improvements across your entire database.</p>
+        </div>
+      </div>
     </div>
   </div>
 </div>

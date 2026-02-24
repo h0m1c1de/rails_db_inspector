@@ -138,6 +138,19 @@ RSpec.describe RailsDbInspector::SqlSubscriber do
 
         expect(store.all).to be_empty
       end
+
+      it "records timestamp as Time when event.time is already a Time" do
+        ActiveSupport::Notifications.instrument("sql.active_record",
+          name: "User Load",
+          sql: "SELECT 1",
+          binds: [],
+          connection_id: 1,
+          cached: false
+        )
+
+        expect(store.all.length).to eq 1
+        expect(store.all.first.timestamp).to be_a(Time)
+      end
     end
   end
 end

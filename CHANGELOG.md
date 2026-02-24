@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-02-24
+
+### Added
+
+- **SQL Console** — interactive SQL query console with syntax awareness, query history, table browser, and keyboard shortcuts (⌘+Enter to run)
+  - Read-only by default; configurable with `allow_console_writes` option
+  - DDL statements (DROP, TRUNCATE, ALTER, CREATE, GRANT, REVOKE) always blocked
+  - Results displayed in sortable table with NULL value styling
+- **Slow Query Log** — dedicated slow query panel on the Query Monitor page ranking queries by duration
+  - Filter toolbar with preset thresholds (All, >100ms, >1s) and custom threshold input
+  - Client-side duration sorting (slowest first, fastest first, by time)
+  - Filter summary banner showing visible/total counts
+  - Top 20 slow queries displayed with rank, duration badges, and quick links to View/Explain
+- **Table Size Stats** — per-table disk usage displayed in schema ERD
+  - Supports PostgreSQL (`pg_total_relation_size`), MySQL (`information_schema.TABLES`), and SQLite (`dbstat`)
+  - Data/index size breakdown with visual bar chart in detail panel
+  - Total database size, largest table, and data/index ratio in health bar sidebar
+  - Table sizes shown on ERD node headers and sidebar items
+- **EXPLAIN Page Overhaul** — educational reading guide, verdict card (good/ok/bad), node type glossary, column tooltips with color-coded cells, "What to Do Next" section
+- **ANALYZE from EXPLAIN page** — run ANALYZE on any table via dropdown directly from the explain page
+- Console navigation link added to all pages
+
+### Changed
+
+- Renamed "Execution Summary" to "Performance Metrics" on explain pages
+- Query Monitor table rows now carry data-duration attributes for client-side filtering
+
 ## [0.5.0] - 2026-02-24
 
 ### Added

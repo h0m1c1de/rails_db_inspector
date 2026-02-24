@@ -210,4 +210,26 @@ RSpec.describe RailsDbInspector::ApplicationHelper, "coverage" do
       expect(result).to eq "SELECT * FROM users"
     end
   end
+
+  describe "#detect_n_plus_one — additional branch coverage" do
+    it "returns 'unknown' table when SQL has no FROM clause" do
+      queries = 4.times.map do
+        build_query(sql: "SELECT 1")
+      end
+
+      result = helper.detect_n_plus_one(queries)
+      expect(result).not_to be_empty
+      expect(result.first[:table]).to eq("unknown")
+    end
+
+    it "skips groups where normalized SQL is empty after strip" do
+      queries = 4.times.map do
+        build_query(sql: "/* comment only */")
+      end
+
+      result = helper.detect_n_plus_one(queries)
+      # After normalization and stripping, the SQL is empty — should be skipped
+      expect(result).to be_empty
+    end
+  end
 end
