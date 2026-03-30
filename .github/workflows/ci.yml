@@ -13,7 +13,7 @@ jobs:
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -22,7 +22,7 @@ jobs:
           bundler-cache: true
 
       - name: Prepare RuboCop cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         env:
           DEPENDENCIES_HASH: ${{ hashFiles('**/.rubocop.yml', '**/.rubocop_todo.yml', 'Gemfile.lock') }}
         with:
@@ -42,7 +42,7 @@ jobs:
         ruby-version: ['3.2', '3.3', '3.4']
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
         uses: ruby/setup-ruby@v1
